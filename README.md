@@ -67,6 +67,7 @@ npm.cmd run dist:portable
 | [累计开发日志](DEVELOPMENT-LOG-CN.md) | 按正式版本记录变化，不另发 FIX |
 | [架构说明](docs/ARCHITECTURE.md) | 模块职责、数据流和 IPC 设计 |
 | [Windows 构建指南](docs/BUILD-WINDOWS.md) | 安装、启动、打包、诊断和本地 Git 上传 |
+| [Windows 源码上传指南](docs/UPLOAD-SOURCE-WINDOWS.md) | 一键复制当前源码到仓库并推送 |
 | [测试策略](docs/TESTING.md) | 自动测试覆盖范围与实机验证要求 |
 | [数据源说明](docs/DATA-SOURCES.md) | JSON/TXT 字段、来源边界和地理标签含义 |
 | [安全与隐私](docs/SECURITY-AND-PRIVACY.md) | 本地网络行为、限制和安全边界 |
