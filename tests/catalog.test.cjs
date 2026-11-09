@@ -80,3 +80,34 @@ test('maps English and Chinese Estonia names to EE and its flag', () => {
   assert.equal(chinese.items[0].cca2, 'EE');
   assert.equal(chinese.items[0].flag, '🇪🇪');
 });
+
+
+test('parses current zip.cm.edu.kg data.meta schema including city and colo IATA', () => {
+  const catalog = parseCatalogJson({
+    generated_at: '2026-11-09T04:54:32Z',
+    list: { ips: 1, country: { EE: 1 } },
+    data: [{
+      ip: '5.42.221.16',
+      port: [443, 8443],
+      meta: {
+        country: 'EE',
+        country_cn: '爱沙尼亚',
+        city: 'Tallinn',
+        region: 'Harju County',
+        asn: 3249,
+        asOrganization: 'Example Telecom',
+        colo: { iata: 'TLL' }
+      }
+    }]
+  });
+  assert.equal(catalog.items.length, 2);
+  assert.equal(catalog.declaredIpCount, 1);
+  assert.equal(catalog.countryCounts.EE, 1);
+  assert.equal(catalog.items[0].cca2, 'EE');
+  assert.equal(catalog.items[0].country, '爱沙尼亚');
+  assert.equal(catalog.items[0].flag, '🇪🇪');
+  assert.equal(catalog.items[0].city, 'Tallinn');
+  assert.equal(catalog.items[0].region, 'Harju County');
+  assert.equal(catalog.items[0].iata, 'TLL');
+  assert.equal(catalog.items[1].port, 8443);
+});
