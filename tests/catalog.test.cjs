@@ -70,3 +70,13 @@ test('JSON and TXT merge should keep country metadata if JSON city metadata is a
   assert.equal(merged.items[0].country, '日本');
   assert.equal(merged.items[0].region, '亚洲');
 });
+
+
+test('maps English and Chinese Estonia names to EE and its flag', () => {
+  const english = parseCatalogJson({ data: [{ ip: '5.42.221.16', port: 443, locations: { country: 'Estonia', region: 'Europe' } }] });
+  const chinese = parseCatalogJson({ data: [{ ip: '5.42.221.131', port: 443, locations: { country: '爱沙尼亚', region: '欧洲' } }] });
+  assert.equal(english.items[0].cca2, 'EE');
+  assert.equal(english.items[0].flag, '🇪🇪');
+  assert.equal(chinese.items[0].cca2, 'EE');
+  assert.equal(chinese.items[0].flag, '🇪🇪');
+});
