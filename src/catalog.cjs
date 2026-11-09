@@ -34,20 +34,45 @@ const COUNTRY_REGION = {
   ZA:'非洲', ZM:'非洲', ZW:'非洲'
 };
 
-let regionNames;
-let countryNames;
+let countryNamesZh;
+let countryNamesEn;
 try {
-  regionNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' });
-  countryNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' });
+  countryNamesZh = new Intl.DisplayNames(['zh-CN'], { type: 'region' });
+  countryNamesEn = new Intl.DisplayNames(['en'], { type: 'region' });
 } catch {
-  regionNames = null;
-  countryNames = null;
+  countryNamesZh = null;
+  countryNamesEn = null;
+}
+
+const COUNTRY_NAME_TO_CODE = new Map();
+for (const code of Object.keys(COUNTRY_REGION)) {
+  for (const name of [countryNamesZh?.of(code), countryNamesEn?.of(code)]) {
+    if (name) COUNTRY_NAME_TO_CODE.set(name.trim().toLowerCase(), code);
+  }
+}
+for (const [name, code] of Object.entries({
+  'usa': 'US', 'u.s.a.': 'US', 'united states of america': 'US',
+  'uk': 'GB', 'u.k.': 'GB', 'south korea': 'KR', 'republic of korea': 'KR',
+  'north korea': 'KP', 'russia': 'RU', 'viet nam': 'VN',
+  'uae': 'AE', 'taiwan': 'TW', 'hong kong': 'HK', 'macao': 'MO', 'macau': 'MO'
+})) COUNTRY_NAME_TO_CODE.set(name, code);
+
+function findCountryCode(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const upper = raw.toUpperCase();
+  if (/^[A-Z]{2}$/.test(upper)) return upper;
+  if (/^[A-Z]{3}$/.test(upper)) {
+    const iso3 = { USA:'US', GBR:'GB', DEU:'DE', FRA:'FR', NLD:'NL', JPN:'JP', KOR:'KR', CHN:'CN', SGP:'SG', HKG:'HK', TWN:'TW', CAN:'CA', AUS:'AU', IND:'IN', BRA:'BR', RUS:'RU', TUR:'TR', ESP:'ES', ITA:'IT', CHE:'CH', SWE:'SE', NOR:'NO', FIN:'FI', POL:'PL', AUT:'AT', BEL:'BE', IRL:'IE', PRT:'PT', MEX:'MX', IDN:'ID', THA:'TH', MYS:'MY', PHL:'PH', VNM:'VN' };
+    if (iso3[upper]) return iso3[upper];
+  }
+  return COUNTRY_NAME_TO_CODE.get(raw.toLowerCase()) || '';
 }
 
 function countryName(code) {
   const cc = String(code || '').trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(cc)) return cc || '未知国家';
-  return countryNames?.of(cc) || cc;
+  return countryNamesZh?.of(cc) || cc;
 }
 
 function flagEmoji(code) {
@@ -82,54 +107,121 @@ function normalizePorts(portValue) {
   return [...new Set(values.map(value => Number(value)).filter(port => Number.isInteger(port) && port >= 1 && port <= 65535))];
 }
 
+function firstValue(...values) {
+  return values.find(value => value !== undefined && value !== null && String(value).trim() !== '');
+}
+
+function hasLocationFields(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return ['cca2','countryCode','country_code','iso2','country','countryName','country_name',
+    'region','continent','city','cityName','city_name','town','locality','iata','lat','latitude','lon','lng','longitude']
+    .some(key => value[key] !== undefined && value[key] !== null && String(value[key]).trim() !== '');
+}
+
+function normalizeLocationObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const location = { ...value };
+  if (location.country && typeof location.country === 'object') {
+    const nestedCountry = location.country;
+    location.cca2 ??= nestedCountry.cca2 ?? nestedCountry.code ?? nestedCountry.iso2;
+    location.countryName ??= nestedCountry.name ?? nestedCountry.name_en;
+    location.country = nestedCountry.name ?? nestedCountry.name_en ?? nestedCountry.code ?? '';
+  }
+  if (location.continent && typeof location.continent === 'object') {
+    location.region ??= location.continent.name ?? location.continent.code;
+  }
+  return location;
+}
+
+function findLocationObject(value, depth = 0) {
+  if (!value || typeof value !== 'object' || depth > 3) return null;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = findLocationObject(entry, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  const normalized = normalizeLocationObject(value);
+  if (hasLocationFields(normalized)) return normalized;
+  for (const key of ['location','locations','geo','geolocation','geoip','data','result','loc','items']) {
+    const found = findLocationObject(value[key], depth + 1);
+    if (found) return found;
+  }
+  for (const entry of Object.values(value)) {
+    const found = findLocationObject(entry, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
 function makeItem(ipValue, port, location = {}) {
   const ip = normalizeIp(ipValue);
   if (!ip) return null;
-  const cca2 = String(location.cca2 || location.country || '').trim().toUpperCase();
-  const city = String(location.city || location.name || '').trim();
-  const region = normalizeRegion(location.region, cca2);
+  const rawCountry = firstValue(location.cca2, location.countryCode, location.country_code, location.iso2,
+    location.cc, location.iso, location.country, location.countryName, location.country_name, location.nation);
+  const cca2 = findCountryCode(rawCountry);
+  const literalCountry = firstValue(location.countryName, location.country_name, location.nation,
+    rawCountry && !cca2 ? rawCountry : null);
+  const city = String(firstValue(location.city, location.cityName, location.city_name, location.town,
+    location.locality, location.municipality, location.name) || '').trim();
+  const region = normalizeRegion(firstValue(location.region, location.continent, location.regionName, location.continent_name), cca2);
   const portNumber = Number(port);
   if (!Number.isInteger(portNumber) || portNumber < 1 || portNumber > 65535) return null;
+  const latValue = firstValue(location.lat, location.latitude);
+  const lonValue = firstValue(location.lon, location.lng, location.longitude);
   return {
     id: `${ip}:${portNumber}`,
     ip,
     port: portNumber,
     cca2,
-    country: countryName(cca2),
+    country: cca2 ? countryName(cca2) : String(literalCountry || '未知国家'),
     flag: flagEmoji(cca2),
     region,
     city: city || '城市未标注',
-    iata: String(location.iata || '').trim().toUpperCase(),
-    lat: location.lat !== undefined && location.lat !== null && Number.isFinite(Number(location.lat)) ? Number(location.lat) : null,
-    lon: location.lon !== undefined && location.lon !== null && Number.isFinite(Number(location.lon)) ? Number(location.lon) : null
+    iata: String(firstValue(location.iata, location.airport, location.airport_code) || '').trim().toUpperCase(),
+    lat: latValue !== undefined && Number.isFinite(Number(latValue)) ? Number(latValue) : null,
+    lon: lonValue !== undefined && Number.isFinite(Number(lonValue)) ? Number(lonValue) : null
   };
 }
 
 function flattenRecords(data) {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object') {
-    // Some mirrors wrap records in a map keyed by IP instead of an array.
-    return Object.entries(data)
-      .filter(([, value]) => value && typeof value === 'object')
-      .map(([key, value]) => ({ ...value, ip: value.ip ?? value.address ?? key }));
+  if (Array.isArray(data)) return data.filter(value => value && typeof value === 'object' && !Array.isArray(value));
+  if (!data || typeof data !== 'object') return [];
+  for (const key of ['data','items','records','nodes','ips','proxies','results']) {
+    if (Array.isArray(data[key])) return flattenRecords(data[key]);
   }
-  return [];
+  const entries = Object.entries(data).filter(([key, value]) =>
+    value && typeof value === 'object' && !Array.isArray(value) &&
+    (value.ip || value.address || value.host || value.ipAddress || value.ip_address || net.isIP(key))
+  );
+  return entries.map(([key, value]) => ({ ...value, ip: value.ip ?? value.address ?? value.host ?? value.ipAddress ?? value.ip_address ?? key }));
 }
 
 function parseCatalogJson(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('无效的 JSON 根对象');
-  const records = flattenRecords(payload.data ?? payload.items ?? payload.ips);
+  let records = [];
+  for (const key of ['data','items','ips','records','nodes','proxies','results']) {
+    records = flattenRecords(payload[key]);
+    if (records.length) break;
+  }
+  if (!records.length) records = flattenRecords(payload);
   const itemsById = new Map();
   for (const record of records) {
     if (!record || typeof record !== 'object') continue;
-    const ip = record.ip ?? record.address ?? record.host;
-    const ports = normalizePorts(record.port ?? record.ports ?? 443);
-    const locations = record.locations && typeof record.locations === 'object' ? record.locations : (record.location || {});
+    const ip = record.ip ?? record.address ?? record.host ?? record.ipAddress ?? record.ip_address ?? record.proxyIP ?? record.proxyip;
+    const portValue = record.port ?? record.ports ?? record.portRemote ?? record.remotePort ?? 443;
+    const ports = normalizePorts(typeof portValue === 'string' && /[,;\s]/.test(portValue.trim())
+      ? portValue.split(/[,;\s]+/).filter(Boolean) : portValue);
+    const location = findLocationObject(record.locations) || findLocationObject(record.location) ||
+      findLocationObject(record.geo) || findLocationObject(record.geolocation) || record;
+    const locations = { ...record, ...location };
     for (const port of ports) {
       const item = makeItem(ip, port, locations);
       if (!item) continue;
       const existing = itemsById.get(item.id);
-      if (!existing || (existing.city === '城市未标注' && item.city !== '城市未标注')) itemsById.set(item.id, item);
+      if (!existing) itemsById.set(item.id, item);
+      else itemsById.set(item.id, mergeNodeLocations(existing, item));
     }
   }
   const items = [...itemsById.values()];
@@ -154,6 +246,21 @@ function splitHostPort(raw) {
   return { ip: value.slice(0, index), port: Number(value.slice(index + 1)) };
 }
 
+function locationFieldMissing(value) {
+  return value === undefined || value === null || value === '' ||
+    value === '城市未标注' || value === '未知国家' || value === '未分类';
+}
+
+function mergeNodeLocations(oldItem, newItem) {
+  const merged = { ...oldItem, ...newItem };
+  for (const key of ['cca2','country','flag','region','city','iata','lat','lon']) {
+    if (locationFieldMissing(newItem[key]) && !locationFieldMissing(oldItem[key])) merged[key] = oldItem[key];
+  }
+  if (newItem.lat === null && oldItem.lat !== null) merged.lat = oldItem.lat;
+  if (newItem.lon === null && oldItem.lon !== null) merged.lon = oldItem.lon;
+  return merged;
+}
+
 function parseCatalogTxt(text) {
   const itemsById = new Map();
   for (const line of String(text || '').split(/\r?\n/)) {
@@ -162,7 +269,9 @@ function parseCatalogTxt(text) {
     const [targetPart, countryPart = ''] = cleaned.split('#', 2);
     const target = splitHostPort(targetPart);
     if (!target) continue;
-    const item = makeItem(target.ip, target.port, { cca2: countryPart.trim() });
+    const countryText = countryPart.trim();
+    const countryCode = countryText.match(/^([A-Z]{2})\b/i)?.[1] || countryText;
+    const item = makeItem(target.ip, target.port, { cca2: countryCode });
     if (item) itemsById.set(item.id, item);
   }
   return {
@@ -178,7 +287,8 @@ function mergeCatalogs(primary, secondary) {
   const items = new Map();
   for (const item of [...(secondary?.items || []), ...(primary?.items || [])]) {
     const old = items.get(item.id);
-    if (!old || (old.city === '城市未标注' && item.city !== '城市未标注')) items.set(item.id, item);
+    if (!old) items.set(item.id, item);
+    else items.set(item.id, mergeNodeLocations(old, item));
   }
   const base = primary?.items?.length ? primary : secondary;
   return {
@@ -197,5 +307,6 @@ module.exports = {
   normalizeRegion,
   countryName,
   flagEmoji,
-  normalizeIp
+  normalizeIp,
+  findCountryCode
 };
