@@ -54,7 +54,9 @@ for (const [name, code] of Object.entries({
   'usa': 'US', 'u.s.a.': 'US', 'united states of america': 'US',
   'uk': 'GB', 'u.k.': 'GB', 'south korea': 'KR', 'republic of korea': 'KR',
   'north korea': 'KP', 'russia': 'RU', 'viet nam': 'VN',
-  'uae': 'AE', 'taiwan': 'TW', 'hong kong': 'HK', 'macao': 'MO', 'macau': 'MO'
+  'uae': 'AE', 'taiwan': 'TW', 'hong kong': 'HK', 'macao': 'MO', 'macau': 'MO',
+  'estonia': 'EE', 'eesti': 'EE', 'republic of estonia': 'EE',
+  '爱沙尼亚': 'EE', '爱沙尼亚共和国': 'EE'
 })) COUNTRY_NAME_TO_CODE.set(name, code);
 
 function findCountryCode(value) {
@@ -256,6 +258,7 @@ function mergeNodeLocations(oldItem, newItem) {
   for (const key of ['cca2','country','flag','region','city','iata','lat','lon']) {
     if (locationFieldMissing(newItem[key]) && !locationFieldMissing(oldItem[key])) merged[key] = oldItem[key];
   }
+  if (merged.cca2 && /^[A-Z]{2}$/.test(merged.cca2)) merged.flag = flagEmoji(merged.cca2);
   if (newItem.lat === null && oldItem.lat !== null) merged.lat = oldItem.lat;
   if (newItem.lon === null && oldItem.lon !== null) merged.lon = oldItem.lon;
   return merged;
