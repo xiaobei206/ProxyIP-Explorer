@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 test('project metadata and UI version are aligned', () => {
-  assert.equal(pkg.version, '0.1.2');
+  assert.equal(pkg.version, '0.1.3');
   const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   assert.match(html, new RegExp(`id="appVersion">v${pkg.version}<`));
