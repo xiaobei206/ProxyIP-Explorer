@@ -1,97 +1,89 @@
-# ProxyIP Explorer
+# ProxyIP Explorer 0.1.2
 
-ProxyIP Explorer 是一个面向 Windows 的桌面工具，目标是把 EdgeTunnel / CMLiu 公开 ProxyIP 资源库的获取、地区分类和延迟探测放到本机执行。
+独立 Windows Electron 工具：获取 CMLiu / CF 中转 IP 打包服务的全球 ProxyIP 数据，在本机对 IP:Port 执行 TCP、TLS、HTTP 探针，并按最近检测延迟排序。
 
-> 当前版本：**0.1.2**。仓库的实际代码状态以 **main** 分支当前文件和 **package.json** 为准；不要把历史测试记录等同于 Windows 实机验证。
+## 0.1.2 更新
 
-## 核心目标
+- 修正 Electron 45 的安装流程：`npm install` 完成后，显式执行 `node_modules/electron/install.js` 下载 Windows Electron 二进制。
+- 下载 Electron 二进制时先尝试 npmmirror；失败后清理不完整文件，再使用 Electron 官方 GitHub Release 源重试。
+- 安装完成后检查 `electron.exe`、`dist/version`、`path.txt`，并实际运行 `electron.exe --version`。
+- 修正 0.1.1 的错误判断：Electron 42 起不再依靠 npm `postinstall` 自动下载主程序，因此 npm 显示 `info ok` 并不代表 `electron.exe` 已经存在。
+- 最低 Node.js 版本更新为 22.12.0，与 Electron 45.2.1 的运行要求一致。
+- 保留 0.1.1 的全球资源获取、地理分类、探测、排序、持续检测和导出功能。
 
-- 从上游 **all.json** 读取结构化全球 ProxyIP 资源，保留上游提供的大洲、国家、城市、IATA 和经纬度标签。
-- JSON 不可用时回退 **all.txt**；TXT 不含城市时明确显示未标注，不凭空推测。
-- 在 Windows 本机对每个 IP:Port 执行 TCP/TLS/HTTP 探针，并显示连接延迟和探针成功状态。
-- 按最近一次有效测试的延迟排序，支持国家/城市筛选、持续测试、停止测试、复制和 CSV 导出。
-- 安装和打包流程必须能清楚报告错误，不能让批处理窗口闪退或只给出含糊的“安装失败”。
+## 功能
 
-## 当前数据源
+- 首选 `https://zip.cm.edu.kg/all.json`，沿用上游 `region / cca2 / city / iata / lat / lon`，直接按大洲、国家、城市分类。
+- JSON 失败时回退 `https://zip.cm.edu.kg/all.txt`。TXT 只有国家代码，城市可能显示“城市未标注”。
+- 自动把数据中的多个端口展开成独立 `IP:Port` 节点，并去重。
+- 资源库成功获取后写入本地缓存，网络不可用时可读取上一次缓存。
+- 本机原生 TCP + TLS + HTTP 探针：分别使用 SNI `ipv4.090227.xyz` 和 `ipv6.090227.xyz` 连接每个候选 IP:Port，发起 HTTP GET，并检查探针 JSON 中是否有出口 IP。
+- 表格显示 TCP 建连平均延迟、IPv4/IPv6 探针结果、可用/失败状态；智能排序将通过探针的节点按延迟排前面。
+- 当前页检测（默认 100 个）或当前筛选全部检测；支持并发、超时、持续检测间隔设置。
+- 支持 CSV 导出、复制 IP:Port。
 
-- 结构化 JSON：<https://zip.cm.edu.kg/all.json>
-- 备用 TXT：<https://zip.cm.edu.kg/all.txt>
+## Windows 运行
 
-数据源属于第三方社区服务；项目只读取其公开资源，不控制上游可用性、节点质量或地理标签准确性。详细说明见 [数据源与归属](docs/DATA-SOURCES.md)。
+要求：Windows 10/11 x64、Node.js 22.12.0+（建议 Node 24）、系统自带 Windows PowerShell 5.1 或 PowerShell 7。
 
-## 技术栈
+1. 将 ZIP 完整解压到普通可写目录（不要直接在压缩包内运行）。
+2. 双击 `安装依赖.bat`。安装过程会显示在窗口内，日志保存为 `install-dependencies.log`。
+3. 安装成功后双击 `启动软件.bat`。
+4. 点击“更新资源”，再点击“开始检测”。
 
-- Electron 45.2.1
-- Node.js 22.12.0+（推荐当前受支持的 Node.js LTS；具体最低要求以 **package.json** 为准）
-- 原生 CommonJS、HTML、CSS、JavaScript
-- Node.js **net** / **tls** 实现本机连接检测
-- Node.js 内置测试运行器（**node --test**）
+安装器分两步：先从 npm registry 安装 JavaScript 依赖，再显式下载 Electron Windows 主程序。Electron 42 及更高版本的二进制下载行为已经改变，不再依靠传统 `postinstall` 自动安装。`npm warn install-scripts` 是 npm 对依赖安装脚本审核状态的提示；本项目不会为了消除提示而批准所有第三方脚本，而是调用 Electron 包自身提供的 `install.js` 完成必要的二进制下载。
 
-## Windows 快速开始
+若安装失败，不要关闭或删除日志，直接把 `install-dependencies.log` 发回。日志会包含镜像下载和官方源重试的具体错误。
 
-1. 下载或克隆仓库。
-2. 安装 Node.js，版本须符合 **package.json** 的 **engines.node**。
-3. 双击 **安装依赖.bat**。
-4. 安装成功后双击 **启动软件.bat**。
-5. 在软件中刷新资源，然后开始检测。
+## 打包便携版 EXE
 
-出现安装错误时，先保留并查看 **install-dependencies.log**，不要删除日志后反复重装。安装器为什么会显式执行 Electron 安装脚本，见 [Windows 安装、运行与打包](docs/BUILD-WINDOWS.md)。
+在 Windows 上双击 `打包便携版EXE.bat`。若依赖尚未安装，脚本会先调用同一安装器；生成文件位于 `dist` 目录。
 
-## 开发者命令
+命令行方式：
 
-在项目根目录打开 PowerShell：
-
-~~~powershell
-node --version
-npm --version
-npm test
+```powershell
+npm install
+node .\node_modules\electron\install.js
 npm start
+npm test
 npm run dist:portable
-~~~
+```
 
-Windows PowerShell 中优先使用 **npm.cmd** 调用 npm，避免某些环境因执行策略而拦截 **npm.ps1**：
+## 重要说明：这不是 ICMP Ping
 
-~~~powershell
-npm.cmd test
-npm.cmd start
-npm.cmd run dist:portable
-~~~
+EdgeTunnel 配套的 CheckProxyIP 页面调用 `/check`，检测逻辑在 Cloudflare Worker 中执行。Worker 会对候选地址建立 TCP 连接，使用 `ipv4.090227.xyz` / `ipv6.090227.xyz` 作 SNI，完成 TLS 握手后再发送 HTTP 探针。它显示的 `responseTime` 是两路 TCP `connect_ms` 的平均值，而不是 ICMP Ping，也不是 HTTP 总耗时。
 
-## 文档导航
+本软件将相同的探针流程放到 Windows 本机执行。因此测得的是“当前电脑到候选 ProxyIP 的路径”，不等于 Cloudflare Worker 机房到候选 ProxyIP 的路径。首版把这个数值标为“TCP 延迟”，避免混淆。
 
-| 文档 | 内容 |
-|---|---|
-| [AI 接手提示词](AI_BOOTSTRAP_PROMPT.md) | 新对话 GPT 的最短接手入口 |
-| [AI 开发协议](AI_DEVELOPMENT_PROTOCOL.md) | 版本纪律、仓库操作、验证和交付规则 |
-| [会话交接](SESSION_HANDOFF.md) | 当前版本、已知问题、下一步工作 |
-| [累计开发日志](DEVELOPMENT-LOG-CN.md) | 按正式版本记录变化，不另发 FIX |
-| [架构说明](docs/ARCHITECTURE.md) | 模块职责、数据流和 IPC 设计 |
-| [Windows 构建指南](docs/BUILD-WINDOWS.md) | 安装、启动、打包、诊断和本地 Git 上传 |
-| [Windows 源码上传指南](docs/UPLOAD-SOURCE-WINDOWS.md) | 一键复制当前源码到仓库并推送 |
-| [测试策略](docs/TESTING.md) | 自动测试覆盖范围与实机验证要求 |
-| [数据源说明](docs/DATA-SOURCES.md) | JSON/TXT 字段、来源边界和地理标签含义 |
-| [安全与隐私](docs/SECURITY-AND-PRIVACY.md) | 本地网络行为、限制和安全边界 |
-| [路线图](docs/ROADMAP.md) | 建议按优先级推进的后续任务 |
-| [发布清单](docs/RELEASE-CHECKLIST.md) | 版本发布前的必查事项 |
+## 默认保护
 
-## 关键技术说明：不是普通 ICMP Ping
+- 默认只检测当前页（100 个地址），不会打开软件就对整个全球列表发起大量连接。
+- “当前筛选全部”超过 1,000 个时会弹出确认；单轮上限 12,000 个。
+- 并发默认 16，用户可调整 8–64；连续检测默认关闭。
+- 每个节点会分别连接 IPv4 与 IPv6 两个探针，因此一次检测会产生两条网络连接。
 
-当前探测器并非用 ICMP Echo 作为唯一判据。它对候选 IP:Port 建立到固定探针主机的 TCP/TLS 连接，随后发送 HTTP 请求并验证响应。显示的“TCP 延迟”主要表示 TCP 建连耗时；这不等于完整 HTTP 往返时延，也不等于 Cloudflare Worker 到该 IP 的延迟。
+## 数据说明
 
-因此本软件的结果代表“当前 Windows 电脑 + 当前网络 + 当前候选地址”的观测结果。需要区分本机路径与 Cloudflare 边缘节点的路径，不能将本机排序直接宣称为所有 Worker 机房都适用的最优排序。
+国家、大洲、城市和 IATA 来自上游 JSON，不在本机重新推算。若只有 TXT，软件只按国家代码推导大洲；不会伪造城市信息。
 
-## 当前已知边界
+上游资源由第三方社区维护，节点是否在线、服务是否稳定、地理标签是否精确均不作保证。检测结果只代表该次、该本机网络路径的观测。
 
-- 当前实现依赖第三方公开资源地址，若上游调整 JSON/TXT schema，解析器和测试需要随之更新。
-- **all.json** 提供的地区字段会被沿用；这些标签不是本机重新验证的物理机房证明。
-- 某些候选端口可能拒绝 TLS 或 HTTP 探针，但不代表它在所有场景下都完全不可用。
-- 目前自动测试覆盖解析、探针响应、证书主机名和版本一致性；完整 Windows 安装、真实全球资源下载和长期运行仍应在实际 Windows 电脑验证。
-- 项目尚未声明开源许可证。公开可见不等于自动授予他人复制、修改和再发布的许可；许可证需由仓库所有者明确选择后添加。
+## 项目结构
 
-## 版本与交付纪律
-
-- 不单独发布 **FIX** 版本；任何需要交付的新版本都按正式版本号递增，例如 **0.1.2 → 0.1.3**。
-- **package.json**、界面显示版本、版本说明、测试及交付文件名必须同步。
-- 每个版本更新 [累计开发日志](DEVELOPMENT-LOG-CN.md) 和 [会话交接](SESSION_HANDOFF.md)。
-- 不宣称未实际运行的 Windows 安装、打包、网络下载或端到端测试已经通过。
-- 开发前先阅读 [AI 开发协议](AI_DEVELOPMENT_PROTOCOL.md)，新对话先按 [AI 接手提示词](AI_BOOTSTRAP_PROMPT.md) 恢复现场。
+```text
+ProxyIP-Explorer/
+├─ main.cjs
+├─ preload.cjs
+├─ src/
+│  ├─ catalog.cjs
+│  ├─ probe.cjs
+│  ├─ index.html
+│  ├─ style.css
+│  └─ renderer.js
+├─ scripts/
+│  └─ install-deps.ps1
+├─ tests/
+├─ 安装依赖.bat
+├─ 启动软件.bat
+└─ 打包便携版EXE.bat
+```

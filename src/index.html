@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'none';" />
+  <title>ProxyIP Explorer</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><span></span><span></span><span></span></div>
+        <div>
+          <div class="brand-name">ProxyIP <b>Explorer</b></div>
+          <div class="brand-sub">LOCAL NETWORK MONITOR</div>
+        </div>
+      </div>
+
+      <button class="nav-item active" id="navAll" type="button">
+        <span class="nav-icon">▦</span><span>全球节点</span><span class="nav-count" id="allCount">—</span>
+      </button>
+
+      <div class="sidebar-label">REGIONS</div>
+      <div id="regionList" class="region-list">
+        <div class="side-placeholder">等待加载资源库…</div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="source-dot"></div>
+        <div class="source-info"><span>数据源</span><b id="sourceShort">zip.cm.edu.kg</b></div>
+        <button class="icon-button small" id="openSource" title="打开数据源" type="button">↗</button>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <div class="breadcrumbs"><span>ProxyIP</span><i>/</i><strong id="currentGroup">全球节点</strong></div>
+        <div class="top-actions">
+          <div class="live-state" id="liveState"><span class="live-dot"></span><span id="liveStateText">尚未开始检测</span></div>
+          <button class="button button-quiet" id="refreshBtn" type="button"><span class="button-icon">↻</span>更新资源</button>
+          <button class="button button-primary" id="startBtn" type="button"><span class="button-icon">▶</span>开始检测</button>
+        </div>
+      </header>
+
+      <section class="content-area">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">GLOBAL PROXYIP CATALOG</div>
+            <h1>全球节点监控</h1>
+            <p class="subtitle">直接读取已整理的国家 / 城市数据，在本机完成 TCP、TLS 与 HTTP 探针验证。</p>
+          </div>
+          <div class="data-stamp"><span class="stamp-label">资源库更新时间</span><strong id="generatedAt">等待加载</strong><span id="sourceStatus">正在连接数据源</span></div>
+        </div>
+
+        <div class="notice" id="notice" hidden></div>
+
+        <section class="stats-grid" aria-label="节点统计">
+          <article class="stat-card stat-main"><div class="stat-top"><span>节点地址</span><span class="stat-symbol">◎</span></div><div class="stat-value" id="statTargets">—</div><div class="stat-foot">IP : Port 总数</div></article>
+          <article class="stat-card"><div class="stat-top"><span>国家 / 地区</span><span class="stat-symbol">⌖</span></div><div class="stat-value" id="statCountries">—</div><div class="stat-foot">来自上游地理标签</div></article>
+          <article class="stat-card"><div class="stat-top"><span>城市 / 机房</span><span class="stat-symbol">⌘</span></div><div class="stat-value" id="statCities">—</div><div class="stat-foot">按上游城市与 IATA 分类</div></article>
+          <article class="stat-card stat-good"><div class="stat-top"><span>本机验证可用</span><span class="stat-symbol">✓</span></div><div class="stat-value" id="statOnline">—</div><div class="stat-foot" id="statChecked">尚无检测结果</div></article>
+        </section>
+
+        <section class="monitor-panel">
+          <div class="monitor-heading">
+            <div class="monitor-title"><span class="pulse-icon"></span><div><h2>本机实时检测</h2><p id="monitorDescription">默认检测当前页 100 个节点，不会一启动就扫完整个资源库。</p></div></div>
+            <div class="monitor-controls">
+              <label class="control-label">测速范围
+                <select id="scopeSelect"><option value="page">当前页（最多 100）</option><option value="filtered">当前筛选全部</option></select>
+              </label>
+              <label class="control-label">并发
+                <select id="concurrencySelect"><option>8</option><option selected>16</option><option>24</option><option>32</option><option>48</option><option>64</option></select>
+              </label>
+              <label class="control-label">超时
+                <select id="timeoutSelect"><option value="2500">2.5 秒</option><option value="4500" selected>4.5 秒</option><option value="7000">7 秒</option><option value="10000">10 秒</option></select>
+              </label>
+              <label class="control-label">重复间隔
+                <select id="intervalSelect"><option value="15">15 秒</option><option value="30" selected>30 秒</option><option value="60">60 秒</option><option value="120">2 分钟</option><option value="300">5 分钟</option></select>
+              </label>
+              <label class="toggle-control"><input type="checkbox" id="continuousToggle" /><span class="toggle-track"></span><span>持续检测</span></label>
+            </div>
+          </div>
+          <div class="progress-row"><div class="progress-track"><div class="progress-fill" id="progressFill"></div></div><div class="progress-text" id="progressText">等待开始</div></div>
+        </section>
+
+        <section class="list-panel">
+          <div class="list-toolbar">
+            <div class="toolbar-left">
+              <div class="search-box"><span class="search-icon">⌕</span><input id="searchInput" type="search" placeholder="搜索 IP、国家、城市、IATA…" autocomplete="off" /></div>
+              <select id="statusFilter" class="filter-select"><option value="all">全部节点</option><option value="online">验证可用</option><option value="failed">验证失败</option><option value="untested">未检测</option></select>
+              <select id="sortSelect" class="filter-select"><option value="smart">智能排序</option><option value="latency">延迟从低到高</option><option value="ip">IP 地址</option><option value="country">国家 / 城市</option></select>
+            </div>
+            <div class="toolbar-right"><span id="resultCount">0 个节点</span><button class="text-button" id="exportBtn" type="button">⇩ 导出当前筛选</button></div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="nodes-table">
+              <thead><tr><th class="col-ip">ProxyIP / PORT</th><th>国家 / 城市</th><th>大洲</th><th>协议探针</th><th>TCP 延迟</th><th>状态</th><th class="col-action">操作</th></tr></thead>
+              <tbody id="nodesBody"><tr><td colspan="7" class="empty-cell"><div class="empty-icon">◌</div><b>正在加载全球节点</b><span>正在读取 zip.cm.edu.kg 的结构化 JSON 数据…</span></td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span id="pageInfo">—</span>
+            <div class="pagination"><button id="prevPage" type="button" disabled>‹</button><span id="pageNumber">1 / 1</span><button id="nextPage" type="button" disabled>›</button><select id="pageSize"><option value="50">50 / 页</option><option value="100" selected>100 / 页</option><option value="200">200 / 页</option></select></div>
+          </div>
+        </section>
+
+        <footer class="app-footer"><span>ProxyIP Explorer <b id="appVersion">v0.1.2</b></span><span>地理分类来自上游数据；延迟由本机到候选节点的真实网络路径决定。</span><span><a href="#" id="aboutLink">检测原理</a></span></footer>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="modal-backdrop" id="aboutModal" hidden>
+    <div class="modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">ABOUT THE PROBE</span><h2>检测原理与指标说明</h2></div><button class="icon-button" id="closeAbout" type="button">×</button></div>
+      <div class="modal-content">
+        <p><b>资源与地理分类：</b>优先读取 <code>https://zip.cm.edu.kg/all.json</code>。它已提供国家代码、大洲、城市、IATA 与经纬度，软件不再自行猜测城市。JSON 不可用时回退 <code>all.txt</code>，这时城市信息可能缺失。</p>
+        <p><b>本机测速：</b>每个 IP:端口分别使用 SNI <code>ipv4.090227.xyz</code> 和 <code>ipv6.090227.xyz</code> 建立 TCP/TLS 连接，并向对应探针发送 HTTP GET，检查返回 JSON 中是否存在出口 IP。这是上游 CheckProxyIP 的探针思路在本机的独立实现。</p>
+        <p><b>TCP 延迟：</b>显示两路探针 TCP 建连耗时的平均值，接近网页使用的 responseTime 定义；它不是 ICMP Ping，也不是完整 HTTP 请求耗时。表格同时给出 IPv4/IPv6 探针是否成功。</p>
+        <p><b>注意：</b>本机探测结果反映你当前电脑到候选节点的网络路径，不等于 Cloudflare Worker 机房到该节点的结果。某些网络会屏蔽 ICMP，但 TCP/TLS 仍可正常工作。</p>
+        <p class="modal-links">上游数据：<a href="https://zip.cm.edu.kg/all.json" data-external>all.json</a> · 检测逻辑参考：<a href="https://github.com/cmliu/CF-Workers-CheckProxyIP" data-external>CF-Workers-CheckProxyIP</a> · <a href="https://github.com/cmliu/edgetunnel" data-external>EdgeTunnel</a></p>
+      </div>
+      <div class="modal-footer"><span>默认每 30 秒重复一轮；可随时停止。</span><button class="button button-primary" id="aboutOk" type="button">知道了</button></div>
+    </div>
+  </div>
+
+  <script src="./renderer.js"></script>
+</body>
+</html>

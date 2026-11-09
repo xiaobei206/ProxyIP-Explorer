@@ -1,0 +1,13 @@
+ProxyIP Explorer 0.1.2
+
+本次更新：
+1. 修复 Electron 45 主程序下载流程：npm install 后显式运行 node_modules\electron\install.js。
+2. Electron 二进制下载先尝试 npmmirror，失败后自动清理残留并切换官方 GitHub Release 源。
+3. 增加 electron.exe、版本标记、路径文件和实际启动版本自检。
+4. 明确区分 npm JavaScript 包安装与 Electron 主程序二进制下载，修正 0.1.1 的错误验证逻辑。
+5. Node.js 最低版本调整为 22.12.0，与 Electron 45.2.1 要求一致。
+6. 保留全球 ProxyIP 获取、分类、TCP/TLS/HTTP 检测、持续测速、排序和导出。
+
+安装：解压到普通文件夹，双击“安装依赖.bat”。安装成功后运行“启动软件.bat”。
+失败时保留 install-dependencies.log 并反馈。
+本次交付源码 ZIP，不包含预编译 Windows EXE。
