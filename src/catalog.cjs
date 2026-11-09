@@ -163,7 +163,7 @@ function makeItem(ipValue, port, location = {}) {
   const rawCountry = firstValue(location.cca2, location.countryCode, location.country_code, location.iso2,
     location.cc, location.iso, location.country, location.countryName, location.country_name, location.nation);
   const cca2 = findCountryCode(rawCountry);
-  const literalCountry = firstValue(location.countryName, location.country_name, location.nation,
+  const literalCountry = firstValue(location.countryName, location.country_cn, location.country_name, location.nation,
     rawCountry && !cca2 ? rawCountry : null);
   const city = String(firstValue(location.city, location.cityName, location.city_name, location.town,
     location.locality, location.municipality, location.name) || '').trim();
@@ -215,9 +215,21 @@ function parseCatalogJson(payload) {
     const portValue = record.port ?? record.ports ?? record.portRemote ?? record.remotePort ?? 443;
     const ports = normalizePorts(typeof portValue === 'string' && /[,;\s]/.test(portValue.trim())
       ? portValue.split(/[,;\s]+/).filter(Boolean) : portValue);
+    // Current zip.cm.edu.kg/all.json schema stores geographic data in record.meta.
+    // Keep legacy schemas as fallbacks, but prefer meta fields for the live upstream format.
+    const meta = normalizeLocationObject(record.meta) || {};
     const location = findLocationObject(record.locations) || findLocationObject(record.location) ||
-      findLocationObject(record.geo) || findLocationObject(record.geolocation) || record;
-    const locations = { ...record, ...location };
+      findLocationObject(record.geo) || findLocationObject(record.geolocation) ||
+      findLocationObject(record.meta?.location) || findLocationObject(record.meta?.geo) || {};
+    const locations = {
+      ...record,
+      ...meta,
+      ...location,
+      countryName: firstValue(location.countryName, meta.country_cn, meta.countryName, meta.country_name, record.country_cn),
+      iata: firstValue(location.iata, meta.iata, meta.colo?.iata, record.iata),
+      lat: firstValue(location.lat, meta.lat, meta.latitude, record.lat),
+      lon: firstValue(location.lon, meta.lon, meta.longitude, record.lon)
+    };
     for (const port of ports) {
       const item = makeItem(ip, port, locations);
       if (!item) continue;
@@ -231,7 +243,7 @@ function parseCatalogJson(payload) {
     items,
     generatedAt: payload.generated_at || payload.generatedAt || null,
     declaredIpCount: Number(payload.list?.ips || payload.list?.ip_count || 0) || null,
-    countryCounts: payload.list?.cca2 || null,
+    countryCounts: payload.list?.country || payload.list?.cca2 || null,
     sourceFormat: 'json'
   };
 }
