@@ -168,7 +168,10 @@ function probeTooltip(label, probe) {
   const exit = probe.exit || {};
   const detail = [
     probe.ok ? '探针成功' : '探针失败',
-    probe.statusCode ? 'HTTP ' + probe.statusCode : '',
+    Number.isFinite(probe.connectMs) ? 'TCP ' + Math.round(probe.connectMs) + ' ms' : 'TCP 未连接',
+    Number.isFinite(probe.tlsMs) ? 'TLS ' + Math.round(probe.tlsMs) + ' ms' : '',
+    Number.isFinite(probe.httpMs) ? 'HTTP ' + Math.round(probe.httpMs) + ' ms' : '',
+    probe.statusCode ? 'HTTP 状态 ' + probe.statusCode : '',
     probe.error || '',
     exit.ip ? '出口 IP ' + exit.ip : '',
     [exit.country, exit.city, exit.colo ? 'CF ' + exit.colo : ''].filter(Boolean).join(' / ')
@@ -201,7 +204,7 @@ function renderTable() {
     const exitLine = exit ? '<span class="probe-exit" title="' + escapeHtml(exitTitle) + '">探针出口：' + escapeHtml(exitLocation || '已返回出口信息') + (exitIp ? ' · ' + escapeHtml(exitIp) : '') + '</span>' : '';
     const probes = result
       ? '<span class="probe-tag ' + (result.supportsIPv4 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv4', result.ipv4)) + '">IPv4 ' + (result.supportsIPv4 ? '✓' : '×') + '</span>' +
-        '<span class="probe-tag ' + (result.supportsIPv6 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv6', result.ipv6)) + '">IPv6 ' + (result.supportsIPv6 ? '✓' : '×') + '</span>' + exitLine
+        '<span class="probe-tag ' + (result.supportsIPv6 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv6', result.ipv6)) + '">IPv6 ' + (result.supportsIPv6 ? '✓' : '×') + '</span>'
       : '<span class="probe-tag">等待检测</span>';
     const latencyMeasured = Number.isFinite(result?.responseTime);
     const latency = latencyMeasured
@@ -210,7 +213,7 @@ function renderTable() {
     const iata = item.iata ? ` · ${escapeHtml(item.iata)}` : '';
     return `<tr data-id="${escapeHtml(item.id)}">
       <td><div class="ip-cell"><div><span class="ip-main">${escapeHtml(item.ip)}</span><button class="copy-mini" data-copy="${escapeHtml(item.id)}" title="复制 IP:端口">⧉</button></div><span class="ip-sub">PORT ${item.port}</span></div></td>
-      <td><div class="location-cell"><span class="flag">${item.flag || '🌐'}</span><div class="location-text"><b>${escapeHtml(item.country || '未知国家')}</b><span>${escapeHtml(item.city || '城市未标注')}${iata}</span></div></div></td>
+      <td><div class="location-cell"><span class="flag">${item.flag || '🌐'}</span><div class="location-text"><b>${escapeHtml(item.country || '未知国家')}</b><span>${escapeHtml(item.city || '城市未标注')}${iata}</span>${exitLine}</div></div></td>
       <td><span class="region-tag">${escapeHtml(item.region || '未分类')}</span></td>
       <td><div class="probe-tags">${probes}</div></td>
       <td>${latency}</td>
