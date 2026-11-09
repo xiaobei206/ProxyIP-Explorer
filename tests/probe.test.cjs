@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeTarget, hostMatchesPattern, certificateMatchesHost, parseHttpResponse } = require('../src/probe.cjs');
+const { normalizeTarget, hostMatchesPattern, certificateMatchesHost, parseHttpResponse, calculateConnectLatency } = require('../src/probe.cjs');
 
 test('validates IPv4 and IPv6 probe targets', () => {
   assert.deepEqual(normalizeTarget({ ip: '1.2.3.4', port: 443 }), { host: '1.2.3.4', port: 443 });
@@ -23,4 +23,11 @@ test('parses HTTP JSON probe response', () => {
   const parsed = parseHttpResponse(Buffer.concat([header, body]), false);
   assert.equal(parsed.complete, true);
   assert.equal(parsed.exitIp, '203.0.113.8');
+});
+
+
+test('reports measured TCP latency from successful connects even if another probe fails', () => {
+  assert.equal(calculateConnectLatency([{ connectMs: 42.1 }, { connectMs: null }]), 43);
+  assert.equal(calculateConnectLatency([{ connectMs: 41 }, { connectMs: 61 }]), 51);
+  assert.equal(calculateConnectLatency([{ connectMs: null }, { connectMs: undefined }]), null);
 });
