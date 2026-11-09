@@ -124,14 +124,16 @@ function probeOne(target, host, timeoutMs) {
     let settled = false;
     let tlsStarted = null;
     let response = Buffer.alloc(0);
-    let socket;
-    let timer;
+    let tcpSocket = null;
+    let tlsSocket = null;
+    let timer = null;
 
     const finish = result => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      try { socket?.destroy(); } catch { /* ignored */ }
+      try { tlsSocket?.destroy(); } catch { /* ignored */ }
+      try { if (!tlsSocket) tcpSocket?.destroy(); } catch { /* ignored */ }
       resolve({
         family: target.family,
         host,
@@ -147,54 +149,73 @@ function probeOne(target, host, timeoutMs) {
 
     timer = setTimeout(() => finish({ error: `探测超时（${timeoutMs}ms）` }), timeoutMs);
     try {
-      socket = tls.connect({
-        host: target.hostAddress,
-        port: target.port,
-        servername: host,
-        rejectUnauthorized: false,
-        ALPNProtocols: ['http/1.1'],
-        minVersion: 'TLSv1.2'
-      });
-      socket.once('connect', () => {
+      // Measure TCP on a plain net.Socket before TLS wraps it. This mirrors
+      // CheckProxyIP's connect() -> opened -> TLS handshake sequence.
+      tcpSocket = net.connect({ host: target.hostAddress, port: target.port });
+      tcpSocket.setTimeout(timeoutMs);
+      tcpSocket.once('connect', () => {
         connectMs = Math.max(0, performance.now() - started);
         tlsStarted = performance.now();
-      });
-      socket.once('secureConnect', () => {
-        tlsMs = Math.max(0, performance.now() - (tlsStarted ?? started));
-        const cert = socket.getPeerCertificate(true);
-        if (!certificateMatchesHost(cert, host)) {
-          finish({ error: `证书名称与 ${host} 不匹配` });
-          return;
-        }
-        const httpStarted = performance.now();
-        socket.write(buildRequest(host));
-        socket.on('data', chunk => {
-          response = Buffer.concat([response, chunk]);
-          if (response.length > READ_LIMIT) {
-            finish({ error: `HTTP 响应超过 ${READ_LIMIT} bytes`, httpMs: performance.now() - httpStarted });
-            return;
-          }
-          try {
-            const parsed = parseHttpResponse(response, false);
-            if (parsed?.complete) {
-              finish({ ok: !parsed.error, statusCode: parsed.statusCode, exit: parsed.payload, error: parsed.error, httpMs: performance.now() - httpStarted });
+        try {
+          tlsSocket = tls.connect({
+            socket: tcpSocket,
+            servername: host,
+            rejectUnauthorized: false,
+            ALPNProtocols: ['http/1.1'],
+            minVersion: 'TLSv1.2'
+          });
+          tlsSocket.once('secureConnect', () => {
+            tlsMs = Math.max(0, performance.now() - (tlsStarted ?? performance.now()));
+            const cert = tlsSocket.getPeerCertificate(true);
+            if (!certificateMatchesHost(cert, host)) {
+              finish({ error: `证书名称与 ${host} 不匹配` });
+              return;
             }
-          } catch (error) {
-            finish({ error: error.message, httpMs: performance.now() - httpStarted });
-          }
-        });
-        socket.once('end', () => {
-          const parsed = parseHttpResponse(response, true);
-          finish({ ok: !parsed?.error, statusCode: parsed?.statusCode, exit: parsed?.payload, error: parsed?.error, httpMs: performance.now() - httpStarted });
-        });
+            const httpStarted = performance.now();
+            tlsSocket.write(buildRequest(host));
+            tlsSocket.on('data', chunk => {
+              response = Buffer.concat([response, chunk]);
+              if (response.length > READ_LIMIT) {
+                finish({ error: `HTTP 响应超过 ${READ_LIMIT} bytes`, httpMs: performance.now() - httpStarted });
+                return;
+              }
+              try {
+                const parsed = parseHttpResponse(response, false);
+                if (parsed?.complete) {
+                  finish({ ok: !parsed.error, statusCode: parsed.statusCode, exit: parsed.payload, error: parsed.error, httpMs: performance.now() - httpStarted });
+                }
+              } catch (error) {
+                finish({ error: error.message, httpMs: performance.now() - httpStarted });
+              }
+            });
+            tlsSocket.once('end', () => {
+              const parsed = parseHttpResponse(response, true);
+              finish({ ok: !parsed?.error, statusCode: parsed?.statusCode, exit: parsed?.payload, error: parsed?.error, httpMs: performance.now() - httpStarted });
+            });
+          });
+          tlsSocket.once('error', error => finish({ error: error.message }));
+          tlsSocket.once('timeout', () => finish({ error: `TLS Socket 超时（${timeoutMs}ms）` }));
+          tlsSocket.setTimeout(timeoutMs);
+        } catch (error) {
+          finish({ error: error.message });
+        }
       });
-      socket.once('error', error => finish({ error: error.message }));
-      socket.once('timeout', () => finish({ error: `Socket 超时（${timeoutMs}ms）` }));
-      socket.setTimeout(timeoutMs);
+      tcpSocket.once('error', error => finish({ error: error.message }));
+      tcpSocket.once('timeout', () => finish({ error: `TCP 连接超时（${timeoutMs}ms）` }));
     } catch (error) {
       finish({ error: error.message });
     }
   });
+}
+
+function getExitFamily(result) {
+  if (!result?.ok) return null;
+  const ipType = String(result.exit?.ipType || '').toLowerCase();
+  if (ipType === 'ipv4' || ipType === 'ipv6') return ipType;
+  const exitIp = String(result.exit?.ip || result.exit?.ipAddress || '');
+  if (net.isIP(exitIp) === 4) return 'ipv4';
+  if (net.isIP(exitIp) === 6) return 'ipv6';
+  return null;
 }
 
 function calculateConnectLatency(results) {
@@ -222,8 +243,8 @@ async function probeCandidate(target, timeoutMs = 4500) {
     connectMs: responseTime,
     ipv4,
     ipv6,
-    supportsIPv4: ipv4.ok,
-    supportsIPv6: ipv6.ok,
+    supportsIPv4: getExitFamily(ipv4) === 'ipv4',
+    supportsIPv6: getExitFamily(ipv6) === 'ipv6',
     exitIPv4: ipv4.exit || null,
     exitIPv6: ipv6.exit || null,
     elapsedMs: Math.round(performance.now() - started),
@@ -232,4 +253,4 @@ async function probeCandidate(target, timeoutMs = 4500) {
   };
 }
 
-module.exports = { probeCandidate, normalizeTarget, hostMatchesPattern, certificateMatchesHost, parseHttpResponse, calculateConnectLatency };
+module.exports = { probeCandidate, normalizeTarget, hostMatchesPattern, certificateMatchesHost, parseHttpResponse, calculateConnectLatency, getExitFamily };
