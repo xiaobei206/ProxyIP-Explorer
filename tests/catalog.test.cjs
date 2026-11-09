@@ -42,3 +42,31 @@ test('normalizes known continents and flags', () => {
   assert.equal(normalizeRegion('', 'JP'), '亚洲');
   assert.equal(flagEmoji('JP'), '🇯🇵');
 });
+
+
+test('parses map-wrapped records and alternate flat geo field names', () => {
+  const catalog = parseCatalogJson({
+    data: {
+      '1.2.3.4': { ports: [443, 8443], country_code: 'US', continent: 'North America', city_name: 'Seattle', latitude: 47.6062, longitude: -122.3321 },
+      '5.6.7.8': { port: 443, location: [{ country: 'Germany', city: 'Frankfurt', region: 'Europe', iata: 'FRA' }] }
+    }
+  });
+  assert.equal(catalog.items.length, 3);
+  const seattle = catalog.items.find(item => item.ip === '1.2.3.4');
+  assert.equal(seattle.cca2, 'US');
+  assert.equal(seattle.country, '美国');
+  assert.equal(seattle.region, '北美洲');
+  assert.equal(seattle.city, 'Seattle');
+  const frankfurt = catalog.items.find(item => item.ip === '5.6.7.8');
+  assert.equal(frankfurt.cca2, 'DE');
+  assert.equal(frankfurt.city, 'Frankfurt');
+});
+
+test('JSON and TXT merge should keep country metadata if JSON city metadata is absent', () => {
+  const json = parseCatalogJson({ data: [{ ip: '9.9.9.9', port: 443, locations: { city: '', region: '' } }] });
+  const txt = parseCatalogTxt('9.9.9.9:443#JP');
+  const merged = mergeCatalogs(json, txt);
+  assert.equal(merged.items[0].cca2, 'JP');
+  assert.equal(merged.items[0].country, '日本');
+  assert.equal(merged.items[0].region, '亚洲');
+});
