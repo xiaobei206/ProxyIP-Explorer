@@ -1,17 +1,17 @@
-# ProxyIP Explorer 0.1.4
+# ProxyIP Explorer 0.1.5
 
-## 0.1.4 更新（TCP 计时、国家旗帜与出口城市）
+## 0.1.5 更新（上游地理字段、检测结果可见性）
 
-- TCP 探测改为先用原生 TCP Socket 建连并记录耗时，再将已连接 Socket 交给 TLS；不再依赖 TLS Socket 的 `connect` 事件。
-- 只有实际建立成功的 TCP 连接才参与延迟计算；即使后续 TLS/HTTP 探针失败，测得的 TCP 延迟仍会显示。
-- IPv4/IPv6 能力按探针返回的 `ipType` 或出口 IP 地址族判断，与 CheckProxyIP 的逻辑一致。
-- 加强英文/中文国家名称到 ISO-3166 两位代码的映射；合并 JSON/TXT 地理数据后强制从最终国家代码重算国旗，修复“有爱沙尼亚国家名却显示 🌐”。
-- 检测成功时，把探针出口 IP、国家、城市、ASN 和 CF 机房信息单独展示。该城市来自探针出口 JSON；TXT 本身不提供城市，不会伪造候选 IP 的城市标签。
+- 按当前 `zip.cm.edu.kg/all.json` 的真实结构解析 `data[].meta`：国家代码/中文国名、城市、地区、ASN、运营商和 Cloudflare Colo IATA。
+- 修复原先只解析 `locations/location/geo`、遗漏 `meta` 导致 13,763 条 JSON 记录国家/城市覆盖率为 0% 的问题。
+- 智能排序调整为：验证成功 → 已检测但失败 → 未检测。失败节点不再被剩余数千个未检测节点压到列表末尾。
+- 协议列直接显示失败原因；统计区显示成功、失败、已测数量；资源状态显示国家与城市标签覆盖率。
+- TCP 探测仍先单独建立 TCP 并计时，再进行 TLS/HTTP；失败结果会保留 TCP 测量值与错误原因。
 
 
 独立 Windows Electron 工具：获取 CMLiu / CF 中转 IP 打包服务的全球 ProxyIP 数据，在本机对 IP:Port 执行 TCP、TLS、HTTP 探针，并按最近检测延迟排序。
 
-## 0.1.4 更新
+## 0.1.5 更新
 
 - 修正 Electron 45 的安装流程：`npm install` 完成后，显式执行 `node_modules/electron/install.js` 下载 Windows Electron 二进制。
 - 下载 Electron 二进制时先尝试 npmmirror；失败后清理不完整文件，再使用 Electron 官方 GitHub Release 源重试。
@@ -22,7 +22,7 @@
 
 ## 功能
 
-- 首选 `https://zip.cm.edu.kg/all.json`，沿用上游 `region / cca2 / city / iata / lat / lon`，直接按大洲、国家、城市分类。
+- 首选 `https://zip.cm.edu.kg/all.json`，从 `data[].meta` 读取 `country / country_cn / city / region / colo.iata` 等字段，按国家、城市和大洲分类。
 - JSON 失败时回退 `https://zip.cm.edu.kg/all.txt`。TXT 只有国家代码，城市可能显示“城市未标注”。
 - 自动把数据中的多个端口展开成独立 `IP:Port` 节点，并去重。
 - 资源库成功获取后写入本地缓存，网络不可用时可读取上一次缓存。
