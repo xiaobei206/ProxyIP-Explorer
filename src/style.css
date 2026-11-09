@@ -51,3 +51,74 @@ button { cursor: pointer; }
 .table-footer { min-height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; border-top: 1px solid var(--line); color: #71849a; font-size: 9px; }.pagination { display: flex; align-items: center; gap: 8px; }.pagination button { width: 25px; height: 24px; border-radius: 5px; border: 1px solid var(--line); color: #a9bbcf; background: #172333; font-size: 15px; }.pagination button:disabled { opacity: .3; cursor: default; }.pagination span { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }.pagination select { padding: 4px 6px; font-size: 9px; min-width: 80px; }.app-footer { display: flex; align-items: center; justify-content: space-between; color: #50647c; font-size: 8px; padding: 13px 2px 0; }.app-footer b { color: #7994b1; font-weight: 600; margin-left: 4px; }.app-footer a, .modal-links a { color: #6ca5e8; text-decoration: none; }.app-footer a:hover, .modal-links a:hover { text-decoration: underline; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; padding: 9px 15px; border: 1px solid var(--line-strong); border-radius: 7px; background: #1a293a; color: #d6e7f7; box-shadow: var(--shadow); font-size: 10px; z-index: 30; transition: .2s; }.toast.show { transform: translate(-50%, 0); opacity: 1; }.modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(2, 6, 12, .7); z-index: 20; padding: 20px; }.modal-backdrop[hidden] { display: none; }.modal-card { width: min(610px, 100%); border: 1px solid var(--line-strong); border-radius: 12px; background: #111c29; box-shadow: var(--shadow); }.modal-heading { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 13px; border-bottom: 1px solid var(--line); }.modal-heading h2 { margin: 0; font-size: 17px; }.modal-content { padding: 14px 22px 8px; color: #a5b6c9; font-size: 11px; line-height: 1.85; }.modal-content p { margin: 0 0 11px; }.modal-content b { color: #d7e5f4; }.modal-content code { color: #9bc7f5; background: rgba(80, 128, 184, .12); padding: 2px 4px; border-radius: 3px; font-size: 10px; }.modal-links { color: #74879e; }.modal-footer { padding: 12px 22px 17px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); color: #6f8298; font-size: 9px; }
 @media (max-width: 1280px) { .sidebar { width: 220px; flex-basis: 220px; }.content-area { padding-left: 22px; padding-right: 22px; }.topbar { padding-left: 22px; padding-right: 22px; }.monitor-heading { align-items: flex-start; flex-direction: column; gap: 12px; }.monitor-controls { flex-wrap: wrap; }.stats-grid { gap: 9px; }.stat-card { padding-left: 12px; padding-right: 12px; } }
+
+
+/* 0.1.3 readability pass: normal desktop viewing must not require zoom. */
+html, body { font-size: 14px; }
+body, button, input, select, textarea { line-height: 1.45; }
+.brand-name { font-size: 17px; }
+.brand-sub { font-size: 10px; letter-spacing: 1px; }
+.nav-item { font-size: 14px; padding: 12px; }
+.nav-count { font-size: 12px; }
+.sidebar-label { font-size: 11px; letter-spacing: 1px; }
+.region-button { font-size: 14px; padding: 10px; }
+.country-button { font-size: 13px; padding: 8px; }
+.city-button { font-size: 12px; padding: 7px 8px; }
+.region-count { font-size: 11px !important; }
+.sidebar-footer, .source-status { font-size: 11px; }
+.topbar { min-height: 70px; }
+.live-state { font-size: 12px; }
+.eyebrow { font-size: 11px; letter-spacing: 1.2px; }
+.page-heading h1 { font-size: 28px; line-height: 1.25; }
+.page-heading .subtitle { font-size: 14px; line-height: 1.6; }
+.button { font-size: 13px; padding: 10px 14px; }
+.text-button { font-size: 12px; }
+.notice { font-size: 12px; line-height: 1.65; padding: 11px 13px; }
+.stat-card { padding: 16px 18px; }
+.stat-top { font-size: 12px; }
+.stat-value { font-size: 30px; line-height: 1.15; }
+.stat-foot { font-size: 11px; line-height: 1.4; }
+.monitor-panel { padding: 16px 18px; }
+.monitor-title h2 { font-size: 18px; }
+.monitor-title p, .monitor-description { font-size: 12px; line-height: 1.6; }
+.monitor-controls, .monitor-controls label, .monitor-controls select, .toggle-control { font-size: 12px; }
+.monitor-controls select, .filter-select, .pagination select { font-size: 12px; min-height: 32px; }
+.progress-text, .monitor-progress-label { font-size: 12px; }
+.list-toolbar { min-height: 60px; }
+.search-box input { font-size: 13px; }
+.search-box input::placeholder { font-size: 12px; }
+.filter-select { padding: 8px 10px; }
+.toolbar-right, .result-count { font-size: 12px; }
+.nodes-table th { font-size: 12px; height: 42px; padding: 0 11px; }
+.nodes-table td { font-size: 13px; height: 60px; padding: 9px 11px; }
+.ip-main { font-size: 13px; }
+.ip-sub { font-size: 11px; }
+.copy-mini { font-size: 13px; }
+.flag { font-size: 18px; }
+.location-text { gap: 4px; }
+.location-text b { font-size: 13px; }
+.location-text span { font-size: 11px; line-height: 1.4; }
+.location-text .exit-sub { display: block; color: #7eacd9; font-size: 10px; overflow-wrap: anywhere; }
+.region-tag { font-size: 12px; padding: 5px 8px; }
+.probe-tags { gap: 5px; flex-wrap: wrap; }
+.probe-tag { font-size: 11px; padding: 5px 7px; }
+.latency { font-size: 15px; }
+.status-pill { font-size: 11px; padding: 5px 8px; }
+.row-action { font-size: 12px; }
+.empty-cell b { font-size: 14px; }
+.empty-cell span { font-size: 12px; }
+.table-footer { font-size: 11px; min-height: 46px; }
+.pagination { gap: 10px; font-size: 12px; }
+.pagination button { width: 30px; height: 30px; }
+.app-footer { font-size: 10px; line-height: 1.5; }
+.toast { font-size: 13px; padding: 11px 17px; }
+.modal-heading h2 { font-size: 20px; }
+.modal-content { font-size: 13px; line-height: 1.8; }
+.modal-content code { font-size: 11px; }
+.modal-footer { font-size: 11px; }
+@media (max-width: 1280px) {
+  .page-heading h1 { font-size: 25px; }
+  .stat-value { font-size: 27px; }
+  .nodes-table th { font-size: 11px; }
+  .nodes-table td { font-size: 12px; }
+}
