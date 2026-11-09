@@ -105,20 +105,35 @@ async function loadCatalog() {
     warnings.push(`JSON 获取失败：${error.message}`);
   }
 
-  if (!jsonCatalog || !jsonCatalog.items.length) {
+  const jsonItems = jsonCatalog?.items || [];
+  const countryTagged = jsonItems.filter(item => /^[A-Z]{2}$/.test(String(item.cca2 || ''))).length;
+  const cityTagged = jsonItems.filter(item => item.city && item.city !== '城市未标注').length;
+  const geoMetadataLow = jsonItems.length > 0 &&
+    (countryTagged / jsonItems.length < 0.85 || cityTagged / jsonItems.length < 0.60);
+
+  if (!jsonItems.length || geoMetadataLow) {
     try {
       const text = await fetchText(TXT_URL);
       txtCatalog = parseCatalogTxt(text);
       if (!txtCatalog.items.length) throw new Error('TXT 中未解析到有效 IP/端口记录');
-      warnings.push('当前使用 TXT 兜底数据：国家可识别，但城市/IATA 等细分信息可能缺失。');
+      if (jsonItems.length) {
+        warnings.push(`JSON 已解析 ${jsonItems.length.toLocaleString('zh-CN')} 个节点，但地理标签覆盖偏低（国家 ${Math.round(countryTagged / jsonItems.length * 100)}%，城市 ${Math.round(cityTagged / jsonItems.length * 100)}%）。已读取 TXT 作为补充，补齐可识别的国家代码；TXT 本身不含城市信息，缺失城市不会被伪造。`);
+      } else {
+        warnings.push('当前使用 TXT 兜底数据：可根据国家代码分类，但 TXT 本身不含城市/IATA 等细分信息。');
+      }
     } catch (error) {
-      warnings.push(`TXT 获取失败：${error.message}`);
+      warnings.push(`TXT 获取/补充失败：${error.message}`);
     }
   }
 
   let catalog = mergeCatalogs(jsonCatalog, txtCatalog);
   if (catalog.items.length) {
     catalog.source = jsonCatalog && jsonCatalog.items.length ? JSON_URL : TXT_URL;
+    catalog.supplementedFromTxt = Boolean(jsonCatalog?.items.length && txtCatalog?.items.length);
+    catalog.locationCoverage = {
+      country: catalog.items.length ? Math.round(catalog.items.filter(item => /^[A-Z]{2}$/.test(String(item.cca2 || ''))).length / catalog.items.length * 100) : 0,
+      city: catalog.items.length ? Math.round(catalog.items.filter(item => item.city && item.city !== '城市未标注').length / catalog.items.length * 100) : 0
+    };
     catalog.warnings = warnings;
     catalog.fromCache = false;
     catalog.cachedAt = new Date().toISOString();
