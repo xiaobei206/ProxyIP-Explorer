@@ -1,8 +1,17 @@
-# ProxyIP Explorer 0.1.2
+# ProxyIP Explorer 0.1.3
+
+## 0.1.3 更新（可读性、地理标签与延迟）
+
+- 全局提升字号，表头、节点、按钮、筛选器、侧栏和弹窗均按桌面可读性重新设定。
+- 地理信息解析兼容 `locations` 对象/数组、`location`、扁平国家/城市字段及包装后的 JSON 数据结构；国家字段可为 ISO-2、部分 ISO-3 或常见中英文国名。
+- 若 JSON 能载入大量节点但国家/城市标签覆盖率异常偏低，会读取 `all.txt` 尝试补充国家代码，并明确提示城市信息仍缺失时不会伪造城市。
+- TCP 延迟只统计真实建立成功的 TCP 连接；即使后续 TLS/HTTP 探针失败，只要 TCP 建连时间被测到，仍会显示延迟。
+- 节点行展示探针出口 IP、国家/城市、CF 机房；悬停 IPv4/IPv6 标签可以查看 HTTP 状态、失败原因和出口详情。
+
 
 独立 Windows Electron 工具：获取 CMLiu / CF 中转 IP 打包服务的全球 ProxyIP 数据，在本机对 IP:Port 执行 TCP、TLS、HTTP 探针，并按最近检测延迟排序。
 
-## 0.1.2 更新
+## 0.1.3 更新
 
 - 修正 Electron 45 的安装流程：`npm install` 完成后，显式执行 `node_modules/electron/install.js` 下载 Windows Electron 二进制。
 - 下载 Electron 二进制时先尝试 npmmirror；失败后清理不完整文件，再使用 Electron 官方 GitHub Release 源重试。
