@@ -85,7 +85,10 @@ function renderStats() {
   elements.statCountries.textContent = fmtNumber(countUnique(state.items, item => /^[A-Z]{2}$/.test(String(item.cca2 || '')) ? item.cca2 : ''));
   elements.statCities.textContent = fmtNumber(countUnique(state.items, item => item.city && item.city !== '城市未标注' ? `${item.cca2}|${item.city}|${item.iata}` : ''));
   elements.statOnline.textContent = fmtNumber(online);
-  elements.statChecked.textContent = checked ? `已检测 ${fmtNumber(checked)} 个地址` : '尚无检测结果';
+  const failed = Math.max(0, checked - online);
+  elements.statChecked.textContent = checked
+    ? `成功 ${fmtNumber(online)} · 失败 ${fmtNumber(failed)} · 已测 ${fmtNumber(checked)}`
+    : '尚无检测结果';
   elements.allCount.textContent = fmtNumber(state.items.length);
 }
 
@@ -152,11 +155,17 @@ function applyFilters() {
       const vb = Number.isFinite(rb?.responseTime) ? rb.responseTime : Number.POSITIVE_INFINITY;
       return va - vb || a.ip.localeCompare(b.ip, undefined, { numeric: true });
     }
-    // smart: verified reachable nodes first, sorted by measured TCP latency; then untested, then failed.
-    const rank = r => !r ? 1 : r.success ? 0 : 2;
+    // Smart order: successful nodes, checked-but-failed nodes, then untested nodes.
+    // Do not bury failures after thousands of untested addresses: users must see the
+    // result of the batch they just ran on page 1.
+    const rank = r => !r ? 2 : r.success ? 0 : 1;
     const diff = rank(ra) - rank(rb);
     if (diff) return diff;
-    if (ra?.success && rb?.success) return ra.responseTime - rb.responseTime;
+    if (ra && rb) {
+      const va = Number.isFinite(ra.responseTime) ? ra.responseTime : Number.POSITIVE_INFINITY;
+      const vb = Number.isFinite(rb.responseTime) ? rb.responseTime : Number.POSITIVE_INFINITY;
+      if (va !== vb) return va - vb;
+    }
     return a.ip.localeCompare(b.ip, undefined, { numeric: true }) || a.port - b.port;
   });
   const pages = Math.max(1, Math.ceil(state.filtered.length / state.pageSize));
@@ -196,15 +205,18 @@ function renderTable() {
   }
   elements.nodesBody.innerHTML = pageItems.map(item => {
     const result = state.probeResults.get(item.id);
-    const status = !result ? '<span class="status-pill">未检测</span>' : result.success ? '<span class="status-pill online" title="至少一条探针成功并返回出口 IP">可用</span>' : '<span class="status-pill failed" title="IPv4/IPv6 探针均未能完成有效响应">失败</span>';
+    const status = !result ? '<span class="status-pill">未检测</span>' : result.success ? '<span class="status-pill online" title="至少一条探针成功并返回出口 IP">可用</span>' : '<span class="status-pill failed" title="' + escapeHtml(result.error || 'IPv4/IPv6 探针均未能完成有效响应') + '">失败</span>';
     const exit = result?.exitIPv4 || result?.exitIPv6 || result?.ipv4?.exit || result?.ipv6?.exit;
     const exitIp = exit?.ip || exit?.ipAddress || '';
     const exitLocation = [exit?.country || exit?.country_name, exit?.city, exit?.colo ? 'CF ' + exit.colo : ''].filter(Boolean).join(' · ');
     const exitTitle = [exitLocation, exit?.asOrganization || exit?.org, exit?.asn ? 'ASN ' + exit.asn : '', exitIp].filter(Boolean).join(' / ');
     const exitLine = exit ? '<span class="probe-exit" title="' + escapeHtml(exitTitle) + '">探针出口：' + escapeHtml(exitLocation || '已返回出口信息') + (exitIp ? ' · ' + escapeHtml(exitIp) : '') + '</span>' : '';
+    const failureText = result && !result.success
+      ? '<span class="probe-error" title="' + escapeHtml(result.error || '探针未通过') + '">' + escapeHtml((result.error || '探针未通过').slice(0, 90)) + '</span>'
+      : '';
     const probes = result
       ? '<span class="probe-tag ' + (result.supportsIPv4 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv4', result.ipv4)) + '">IPv4 ' + (result.supportsIPv4 ? '✓' : '×') + '</span>' +
-        '<span class="probe-tag ' + (result.supportsIPv6 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv6', result.ipv6)) + '">IPv6 ' + (result.supportsIPv6 ? '✓' : '×') + '</span>'
+        '<span class="probe-tag ' + (result.supportsIPv6 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv6', result.ipv6)) + '">IPv6 ' + (result.supportsIPv6 ? '✓' : '×') + '</span>' + failureText
       : '<span class="probe-tag">等待检测</span>';
     const latencyMeasured = Number.isFinite(result?.responseTime);
     const latency = latencyMeasured
@@ -244,7 +256,12 @@ async function loadCatalog(isRefresh = false) {
     renderStats();
     renderTable();
     elements.generatedAt.textContent = fmtDate(catalog.generatedAt || catalog.cachedAt);
-    elements.sourceStatus.textContent = catalog.fromCache ? '本机缓存数据' : (catalog.supplementedFromTxt ? 'JSON + TXT 国家标签补充' : (catalog.sourceFormat === 'json' ? '结构化 JSON 数据' : 'TXT 兜底数据'));
+    const coverage = catalog.locationCoverage || {
+      country: state.items.length ? Math.round(state.items.filter(item => /^[A-Z]{2}$/.test(String(item.cca2 || ''))).length / state.items.length * 100) : 0,
+      city: state.items.length ? Math.round(state.items.filter(item => item.city && item.city !== '城市未标注').length / state.items.length * 100) : 0
+    };
+    const sourceLabel = catalog.fromCache ? '本机缓存' : (catalog.supplementedFromTxt ? 'JSON + TXT' : (catalog.sourceFormat === 'json' ? 'JSON' : 'TXT'));
+    elements.sourceStatus.textContent = sourceLabel + ' · 国家 ' + coverage.country + '% / 城市 ' + coverage.city + '%';
     elements.sourceShort.textContent = catalog.fromCache ? '本机缓存' : 'zip.cm.edu.kg';
     if (catalog.warnings?.length) setNotice(catalog.warnings.join('\n'));
     else setNotice('');
@@ -301,7 +318,7 @@ function updateProgress(payload) {
   elements.progressFill.style.width = `${percent}%`;
   elements.progressText.textContent = `第 ${payload.cycle} 轮 · ${fmtNumber(payload.completed)} / ${fmtNumber(payload.total)} · 可用 ${fmtNumber(payload.online)}`;
   if (payload.completed === payload.total) {
-    elements.monitorDescription.textContent = `本轮完成：${fmtNumber(payload.online)} / ${fmtNumber(payload.total)} 个节点至少通过一条探针。`;
+    elements.monitorDescription.textContent = `本轮完成：可用 ${fmtNumber(payload.online)} 个，失败 ${fmtNumber(payload.total - payload.online)} 个；失败节点已排在未检测节点前。`;
   }
 }
 
