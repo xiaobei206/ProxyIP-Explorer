@@ -262,7 +262,9 @@ ipcMain.handle('probe:start', async (event, payload = {}) => {
     webContentsId: event.sender.id
   };
   activeRun = run;
-  setImmediate(() => runMonitor(run, targets, options));
+  // Let the renderer receive runId and install its event filter before very
+  // fast connection failures/results can be emitted from the worker loop.
+  setTimeout(() => runMonitor(run, targets, options), 150);
   return { runId: run.id, total: targets.length, options };
 });
 ipcMain.handle('probe:stop', async () => {
