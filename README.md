@@ -1,17 +1,17 @@
-# ProxyIP Explorer 0.1.3
+# ProxyIP Explorer 0.1.4
 
-## 0.1.3 更新（可读性、地理标签与延迟）
+## 0.1.4 更新（TCP 计时、国家旗帜与出口城市）
 
-- 全局提升字号，表头、节点、按钮、筛选器、侧栏和弹窗均按桌面可读性重新设定。
-- 地理信息解析兼容 `locations` 对象/数组、`location`、扁平国家/城市字段及包装后的 JSON 数据结构；国家字段可为 ISO-2、部分 ISO-3 或常见中英文国名。
-- 若 JSON 能载入大量节点但国家/城市标签覆盖率异常偏低，会读取 `all.txt` 尝试补充国家代码，并明确提示城市信息仍缺失时不会伪造城市。
-- TCP 延迟只统计真实建立成功的 TCP 连接；即使后续 TLS/HTTP 探针失败，只要 TCP 建连时间被测到，仍会显示延迟。
-- 节点行展示探针出口 IP、国家/城市、CF 机房；悬停 IPv4/IPv6 标签可以查看 HTTP 状态、失败原因和出口详情。
+- TCP 探测改为先用原生 TCP Socket 建连并记录耗时，再将已连接 Socket 交给 TLS；不再依赖 TLS Socket 的 `connect` 事件。
+- 只有实际建立成功的 TCP 连接才参与延迟计算；即使后续 TLS/HTTP 探针失败，测得的 TCP 延迟仍会显示。
+- IPv4/IPv6 能力按探针返回的 `ipType` 或出口 IP 地址族判断，与 CheckProxyIP 的逻辑一致。
+- 加强英文/中文国家名称到 ISO-3166 两位代码的映射；合并 JSON/TXT 地理数据后强制从最终国家代码重算国旗，修复“有爱沙尼亚国家名却显示 🌐”。
+- 检测成功时，把探针出口 IP、国家、城市、ASN 和 CF 机房信息单独展示。该城市来自探针出口 JSON；TXT 本身不提供城市，不会伪造候选 IP 的城市标签。
 
 
 独立 Windows Electron 工具：获取 CMLiu / CF 中转 IP 打包服务的全球 ProxyIP 数据，在本机对 IP:Port 执行 TCP、TLS、HTTP 探针，并按最近检测延迟排序。
 
-## 0.1.3 更新
+## 0.1.4 更新
 
 - 修正 Electron 45 的安装流程：`npm install` 完成后，显式执行 `node_modules/electron/install.js` 下载 Windows Electron 二进制。
 - 下载 Electron 二进制时先尝试 npmmirror；失败后清理不完整文件，再使用 Electron 官方 GitHub Release 源重试。
@@ -60,9 +60,11 @@ npm run dist:portable
 
 ## 重要说明：这不是 ICMP Ping
 
-EdgeTunnel 本身是 Cloudflare Workers/Pages 隧道项目，不是全球 ProxyIP 地理数据库；与之配套的 CheckProxyIP 检测页会用 `/check` 探测候选地址，并从探针 JSON 的出口信息中读取出口 IP、国家/城市、ASN/机房等字段。它的国家/城市展示是“探针返回的出口信息”，不要和候选 IP 的上游地理标签混为一谈。
+EdgeTunnel 本身是 Cloudflare Workers/Pages 隧道项目；其配套 CheckProxyIP 用 Worker 从 Cloudflare 机房直连候选 IP，记录 TCP 建连、TLS 握手和 HTTP 探针。检测结果中的城市、国家、ASN 来自 `probe_results.ipv4.exit` / `probe_results.ipv6.exit`，即探针响应报告的出口 IP 地理信息。它不是对候选 IP 做本地离线 GeoIP 反查。
 
-本软件的候选列表优先来自 `https://zip.cm.edu.kg/all.json`，预期从每条记录的 `locations.cca2 / region / city / iata` 读取大洲、国家、城市和机场代码。若结构化 JSON 的地理字段覆盖率异常偏低，会再读取 `all.txt` 尝试补充国家代码；TXT 不提供城市，因此城市仍缺失时会明确提示，不会猜造。
+本软件在 Windows 本机执行相同类型的 TCP → TLS → HTTP 探针，因此测得的是当前电脑到候选 IP:Port 的路径；CheckProxyIP 网页的 `responseTime` 则是 Cloudflare Worker 机房到候选 IP 的 TCP 建连时间，二者不能直接等同。只有 HTTP 探针成功返回出口 JSON 时，软件才有出口城市可显示。
+
+候选列表地理标签来自 `https://zip.cm.edu.kg/all.json`。若 JSON 缺少国家代码，会读取 `all.txt` 补充；该 TXT 仅含 IP、端口和国家代码（例如你发来的爱沙尼亚节点为 `#EE`），不含城市字段。
 
 ## 默认保护
 
