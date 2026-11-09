@@ -107,7 +107,7 @@
           </div>
         </section>
 
-        <footer class="app-footer"><span>ProxyIP Explorer <b id="appVersion">v0.1.3</b></span><span>地理分类来自上游数据；延迟由本机到候选节点的真实网络路径决定。</span><span><a href="#" id="aboutLink">检测原理</a></span></footer>
+        <footer class="app-footer"><span>ProxyIP Explorer <b id="appVersion">v0.1.4</b></span><span>地理分类来自上游数据；延迟由本机到候选节点的真实网络路径决定。</span><span><a href="#" id="aboutLink">检测原理</a></span></footer>
       </section>
     </main>
   </div>
@@ -121,7 +121,7 @@
         <p><b>本机测速：</b>每个 IP:端口分别使用 SNI <code>ipv4.090227.xyz</code> 和 <code>ipv6.090227.xyz</code> 建立 TCP/TLS 连接，并向对应探针发送 HTTP GET，检查返回 JSON 中是否存在出口 IP。这是上游 CheckProxyIP 的探针思路在本机的独立实现。</p>
         <p><b>检测实际做什么：</b>对每个候选 IP:端口分别使用 <code>ipv4.090227.xyz</code> 与 <code>ipv6.090227.xyz</code> 作为 TLS SNI，建立 TLS 连接并发送 HTTP GET。只有探针返回有效 JSON 且包含出口 IP，才算该路成功；至少一条成功则节点标记为“可用”。这不是 ICMP Ping，也不直接测下载速度。</p>
          <p><b>TCP 延迟：</b>显示本机到候选 IP:端口实际建立 TCP 连接的耗时。即使后续 TLS/HTTP/出口探针失败，只要 TCP 已连上，仍会显示测得的延迟；只有两路 TCP 都连不上才显示“—”。延迟不是完整 HTTP 耗时，也不是 Cloudflare Worker 机房的延迟。</p>
-         <p><b>探针出口：</b>探针返回的出口 IP、国家/城市和 CF 机房信息会显示在对应节点行中。它描述的是探针报告的出口，不应与上游提供的候选 IP 地理标签混为一谈。</p>
+         <p><b>探针出口：</b>成功时显示探针返回的出口 IP、国家/城市、ASN 和 CF 机房信息。这里的城市来自探针响应，不是静态 IP 库；若节点探针没有成功返回出口 JSON，就不会有这项城市信息。</p>
         <p><b>注意：</b>本机探测结果反映你当前电脑到候选节点的网络路径，不等于 Cloudflare Worker 机房到该节点的结果。某些网络会屏蔽 ICMP，但 TCP/TLS 仍可正常工作。</p>
         <p class="modal-links">上游数据：<a href="https://zip.cm.edu.kg/all.json" data-external>all.json</a> · 检测逻辑参考：<a href="https://github.com/cmliu/CF-Workers-CheckProxyIP" data-external>CF-Workers-CheckProxyIP</a> · <a href="https://github.com/cmliu/edgetunnel" data-external>EdgeTunnel</a></p>
       </div>
