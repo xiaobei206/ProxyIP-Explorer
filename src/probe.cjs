@@ -197,20 +197,28 @@ function probeOne(target, host, timeoutMs) {
   });
 }
 
+function calculateConnectLatency(results) {
+  const samples = (Array.isArray(results) ? results : [])
+    .map(item => item?.connectMs)
+    .filter(value => Number.isFinite(value) && value >= 0);
+  if (!samples.length) return null;
+  return Math.ceil(samples.reduce((sum, value) => sum + value, 0) / samples.length);
+}
+
 async function probeCandidate(target, timeoutMs = 4500) {
   const { host, port } = normalizeTarget(target);
   const started = performance.now();
   const results = await Promise.all(PROBE_TARGETS.map(probe => probeOne({ ...probe, targetHost: probe.host, hostAddress: host, port }, probe.host, timeoutMs)));
   const [ipv4, ipv6] = results;
-  // Match the upstream display definition: average of the two TCP connect times;
-  // a probe that never connected contributes 0, just as the upstream worker does.
-  const responseTime = Math.ceil(results.reduce((sum, item) => sum + (Number.isFinite(item.connectMs) ? item.connectMs : 0), 0) / results.length);
+  // Report measured TCP connects even when TLS/HTTP/probe validation fails.
+  // If neither address established TCP, there is no latency measurement to display.
+  const responseTime = calculateConnectLatency(results);
   const success = results.some(item => item.ok);
   return {
     id: target.id || `${host}:${port}`,
     candidate: `${host}:${port}`,
     success,
-    responseTime: success ? responseTime : null,
+    responseTime,
     connectMs: responseTime,
     ipv4,
     ipv6,
@@ -224,4 +232,4 @@ async function probeCandidate(target, timeoutMs = 4500) {
   };
 }
 
-module.exports = { probeCandidate, normalizeTarget, hostMatchesPattern, certificateMatchesHost, parseHttpResponse };
+module.exports = { probeCandidate, normalizeTarget, hostMatchesPattern, certificateMatchesHost, parseHttpResponse, calculateConnectLatency };
