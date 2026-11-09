@@ -82,8 +82,8 @@ function renderStats() {
   const online = [...state.probeResults.values()].filter(result => result.success).length;
   const checked = state.probeResults.size;
   elements.statTargets.textContent = fmtNumber(state.items.length);
-  elements.statCountries.textContent = fmtNumber(countUnique(state.items, item => item.cca2));
-  elements.statCities.textContent = fmtNumber(countUnique(state.items, item => `${item.cca2}|${item.city}|${item.iata}`));
+  elements.statCountries.textContent = fmtNumber(countUnique(state.items, item => /^[A-Z]{2}$/.test(String(item.cca2 || '')) ? item.cca2 : ''));
+  elements.statCities.textContent = fmtNumber(countUnique(state.items, item => item.city && item.city !== '城市未标注' ? `${item.cca2}|${item.city}|${item.iata}` : ''));
   elements.statOnline.textContent = fmtNumber(online);
   elements.statChecked.textContent = checked ? `已检测 ${fmtNumber(checked)} 个地址` : '尚无检测结果';
   elements.allCount.textContent = fmtNumber(state.items.length);
@@ -148,8 +148,8 @@ function applyFilters() {
     if (sort === 'ip') return a.ip.localeCompare(b.ip, undefined, { numeric: true }) || a.port - b.port;
     if (sort === 'country') return `${a.region}|${a.country}|${a.city}`.localeCompare(`${b.region}|${b.country}|${b.city}`, 'zh-CN') || a.ip.localeCompare(b.ip, undefined, { numeric: true });
     if (sort === 'latency') {
-      const va = ra?.success ? ra.responseTime : Number.POSITIVE_INFINITY;
-      const vb = rb?.success ? rb.responseTime : Number.POSITIVE_INFINITY;
+      const va = Number.isFinite(ra?.responseTime) ? ra.responseTime : Number.POSITIVE_INFINITY;
+      const vb = Number.isFinite(rb?.responseTime) ? rb.responseTime : Number.POSITIVE_INFINITY;
       return va - vb || a.ip.localeCompare(b.ip, undefined, { numeric: true });
     }
     // smart: verified reachable nodes first, sorted by measured TCP latency; then untested, then failed.
@@ -161,6 +161,19 @@ function applyFilters() {
   });
   const pages = Math.max(1, Math.ceil(state.filtered.length / state.pageSize));
   state.page = Math.min(state.page, pages);
+}
+
+function probeTooltip(label, probe) {
+  if (!probe) return label + '：未检测';
+  const exit = probe.exit || {};
+  const detail = [
+    probe.ok ? '探针成功' : '探针失败',
+    probe.statusCode ? 'HTTP ' + probe.statusCode : '',
+    probe.error || '',
+    exit.ip ? '出口 IP ' + exit.ip : '',
+    [exit.country, exit.city, exit.colo ? 'CF ' + exit.colo : ''].filter(Boolean).join(' / ')
+  ].filter(Boolean);
+  return label + '：' + detail.join('；');
 }
 
 function renderTable() {
@@ -180,9 +193,20 @@ function renderTable() {
   }
   elements.nodesBody.innerHTML = pageItems.map(item => {
     const result = state.probeResults.get(item.id);
-    const status = !result ? '<span class="status-pill">未检测</span>' : result.success ? '<span class="status-pill online">可用</span>' : '<span class="status-pill failed">失败</span>';
-    const probes = result ? `<span class="probe-tag ${result.supportsIPv4 ? 'ok' : ''}">4 ${result.supportsIPv4 ? '✓' : '×'}</span><span class="probe-tag ${result.supportsIPv6 ? 'ok' : ''}">6 ${result.supportsIPv6 ? '✓' : '×'}</span>` : '<span class="probe-tag">等待检测</span>';
-    const latency = result?.success ? `<span class="latency ${result.responseTime < 100 ? 'fast' : result.responseTime < 250 ? 'medium' : 'slow'}">${fmtLatency(result.responseTime)}</span>` : '<span class="latency">—</span>';
+    const status = !result ? '<span class="status-pill">未检测</span>' : result.success ? '<span class="status-pill online" title="至少一条探针成功并返回出口 IP">可用</span>' : '<span class="status-pill failed" title="IPv4/IPv6 探针均未能完成有效响应">失败</span>';
+    const exit = result?.exitIPv4 || result?.exitIPv6 || result?.ipv4?.exit || result?.ipv6?.exit;
+    const exitIp = exit?.ip || exit?.ipAddress || '';
+    const exitLocation = [exit?.country || exit?.country_name, exit?.city, exit?.colo ? 'CF ' + exit.colo : ''].filter(Boolean).join(' · ');
+    const exitTitle = [exitLocation, exit?.asOrganization || exit?.org, exit?.asn ? 'ASN ' + exit.asn : '', exitIp].filter(Boolean).join(' / ');
+    const exitLine = exit ? '<span class="probe-exit" title="' + escapeHtml(exitTitle) + '">探针出口：' + escapeHtml(exitLocation || '已返回出口信息') + (exitIp ? ' · ' + escapeHtml(exitIp) : '') + '</span>' : '';
+    const probes = result
+      ? '<span class="probe-tag ' + (result.supportsIPv4 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv4', result.ipv4)) + '">IPv4 ' + (result.supportsIPv4 ? '✓' : '×') + '</span>' +
+        '<span class="probe-tag ' + (result.supportsIPv6 ? 'ok' : '') + '" title="' + escapeHtml(probeTooltip('IPv6', result.ipv6)) + '">IPv6 ' + (result.supportsIPv6 ? '✓' : '×') + '</span>' + exitLine
+      : '<span class="probe-tag">等待检测</span>';
+    const latencyMeasured = Number.isFinite(result?.responseTime);
+    const latency = latencyMeasured
+      ? '<span class="latency ' + (result.responseTime < 100 ? 'fast' : result.responseTime < 250 ? 'medium' : 'slow') + '" title="' + (result.success ? '本机到候选 IP:端口的 TCP 建连延迟；不是 ICMP Ping' : 'TCP 建连确实测到了，但 TLS/HTTP/出口探针未完整通过；可用性和延迟是两个指标') + '">' + fmtLatency(result.responseTime) + '</span>'
+      : '<span class="latency" title="两路探针均未建立 TCP 连接，因此没有可报告的延迟">—</span>';
     const iata = item.iata ? ` · ${escapeHtml(item.iata)}` : '';
     return `<tr data-id="${escapeHtml(item.id)}">
       <td><div class="ip-cell"><div><span class="ip-main">${escapeHtml(item.ip)}</span><button class="copy-mini" data-copy="${escapeHtml(item.id)}" title="复制 IP:端口">⧉</button></div><span class="ip-sub">PORT ${item.port}</span></div></td>
@@ -217,7 +241,7 @@ async function loadCatalog(isRefresh = false) {
     renderStats();
     renderTable();
     elements.generatedAt.textContent = fmtDate(catalog.generatedAt || catalog.cachedAt);
-    elements.sourceStatus.textContent = catalog.fromCache ? '本机缓存数据' : (catalog.sourceFormat === 'json' ? '结构化 JSON 数据' : 'TXT 兜底数据');
+    elements.sourceStatus.textContent = catalog.fromCache ? '本机缓存数据' : (catalog.supplementedFromTxt ? 'JSON + TXT 国家标签补充' : (catalog.sourceFormat === 'json' ? '结构化 JSON 数据' : 'TXT 兜底数据'));
     elements.sourceShort.textContent = catalog.fromCache ? '本机缓存' : 'zip.cm.edu.kg';
     if (catalog.warnings?.length) setNotice(catalog.warnings.join('\n'));
     else setNotice('');
@@ -291,11 +315,12 @@ function downloadFile(filename, content, mime = 'text/plain;charset=utf-8') {
 function exportFiltered() {
   applyFilters();
   if (!state.filtered.length) { showToast('没有可导出的数据'); return; }
-  const headers = ['IP', 'Port', 'CountryCode', 'Country', 'Region', 'City', 'IATA', 'TCPConnectAvgMs', 'IPv4Probe', 'IPv6Probe', 'Status', 'CheckedAt'];
+  const headers = ['IP', 'Port', 'CountryCode', 'Country', 'Region', 'City', 'IATA', 'TCPConnectMs', 'IPv4Probe', 'IPv6Probe', 'ProbeExitIP', 'ProbeExitCountry', 'ProbeExitCity', 'ProbeExitColo', 'Status', 'CheckedAt'];
   const quote = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
   const rows = state.filtered.map(item => {
     const r = state.probeResults.get(item.id);
-    return [item.ip, item.port, item.cca2, item.country, item.region, item.city, item.iata, r?.responseTime ?? '', r?.supportsIPv4 ? 'OK' : 'NO', r?.supportsIPv6 ? 'OK' : 'NO', !r ? 'Untested' : r.success ? 'Online' : 'Failed', r?.checkedAt || ''];
+    const exit = r?.exitIPv4 || r?.exitIPv6 || r?.ipv4?.exit || r?.ipv6?.exit;
+    return [item.ip, item.port, item.cca2, item.country, item.region, item.city, item.iata, r?.responseTime ?? '', r?.supportsIPv4 ? 'OK' : 'NO', r?.supportsIPv6 ? 'OK' : 'NO', exit?.ip || '', exit?.country || '', exit?.city || '', exit?.colo || '', !r ? 'Untested' : r.success ? 'Online' : 'Failed', r?.checkedAt || ''];
   });
   downloadFile(`ProxyIP-${new Date().toISOString().slice(0, 10)}.csv`, '\uFEFF' + [headers, ...rows].map(row => row.map(quote).join(',')).join('\r\n'), 'text/csv;charset=utf-8');
   showToast(`已导出 ${fmtNumber(state.filtered.length)} 个节点`);
