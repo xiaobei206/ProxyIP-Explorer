@@ -1,6 +1,6 @@
 {
   "name": "proxyip-explorer",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Local Windows ProxyIP catalog, TLS probe and latency monitor",
   "main": "main.cjs",
