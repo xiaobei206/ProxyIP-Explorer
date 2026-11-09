@@ -1,0 +1,84 @@
+name: Source import, tests, portable build, and Release
+
+on:
+  push:
+    paths:
+      - '.source-import/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  import-test-build-release:
+    if: github.event.head_commit.message != 'chore: import ProxyIP Explorer 0.1.2 source'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Reconstruct and verify the original source ZIP
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem '.source-import' -File -Filter 'zip.part*.txt' | Sort-Object Name
+          if ($parts.Count -ne 18) { throw "Expected 18 source ZIP chunks; found $($parts.Count)." }
+          $encoded = ($parts | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join ''
+          $bytes = [Convert]::FromBase64String($encoded)
+          $zipPath = Join-Path $env:RUNNER_TEMP 'ProxyIP-Explorer-0.1.2-source.zip'
+          [IO.File]::WriteAllBytes($zipPath, $bytes)
+          $actual = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = '10c1db81867cbb1d1e9ad261b94f63dc10982bd738080366a0b889f2f275d8fc'
+          if ($actual -ne $expected) { throw "Source archive SHA256 mismatch. Expected $expected; got $actual." }
+          "SOURCE_ZIP=$zipPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Expand-Archive -Path $zipPath -DestinationPath (Join-Path $env:RUNNER_TEMP 'source-unpacked') -Force
+
+      - name: Import source files to repository root
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'source-unpacked/ProxyIP-Explorer-0.1.2'
+          if (!(Test-Path (Join-Path $source 'main.cjs')) -or !(Test-Path (Join-Path $source 'src/renderer.js'))) {
+            throw 'Archive did not contain the complete application source tree.'
+          }
+          New-Item -ItemType Directory -Path 'docs' -Force | Out-Null
+          if (Test-Path 'README.md') { Copy-Item 'README.md' 'docs/REPOSITORY-GUIDE-CN.md' -Force }
+          Get-ChildItem $source -Force | ForEach-Object {
+            if ($_.Name -ne '.git') { Copy-Item $_.FullName -Destination '.' -Recurse -Force }
+          }
+          Get-ChildItem '.source-import' -File -Filter 'zip.part*.txt' | Remove-Item -Force
+          if (Test-Path '.source-import/tail') { Remove-Item '.source-import/tail' -Recurse -Force }
+          if (Test-Path '.source-import/READY') { Remove-Item '.source-import/READY' -Force }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: import ProxyIP Explorer 0.1.2 source'
+          git push origin HEAD:main
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build Windows portable executable
+        run: npm run dist:portable
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $exe = Get-ChildItem 'dist' -Filter 'ProxyIP-Explorer-0.1.2-portable.exe' -Recurse | Select-Object -First 1
+          if (!$exe) { throw 'Portable EXE not found in dist output.' }
+          $files = @($env:SOURCE_ZIP, $exe.FullName)
+          gh release view v0.1.2 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload v0.1.2 $files --clobber
+          } else {
+            gh release create v0.1.2 $files --target main --title 'ProxyIP Explorer 0.1.2' --notes 'ProxyIP Explorer 0.1.2. Includes the complete source archive and Windows portable executable. Published after the automated Windows unit tests and packaging completed successfully.'
+          }
