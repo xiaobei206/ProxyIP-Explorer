@@ -50,9 +50,7 @@ jobs:
           Get-ChildItem $source -Force | ForEach-Object {
             if ($_.Name -ne '.git') { Copy-Item $_.FullName -Destination '.' -Recurse -Force }
           }
-          Get-ChildItem '.source-import' -File -Filter 'zip.part*.txt' | Remove-Item -Force
-          if (Test-Path '.source-import/tail') { Remove-Item '.source-import/tail' -Recurse -Force }
-          if (Test-Path '.source-import/READY') { Remove-Item '.source-import/READY' -Force }
+          if (Test-Path '.source-import') { Remove-Item '.source-import' -Recurse -Force }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
