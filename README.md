@@ -60,9 +60,9 @@ npm run dist:portable
 
 ## 重要说明：这不是 ICMP Ping
 
-EdgeTunnel 配套的 CheckProxyIP 页面调用 `/check`，检测逻辑在 Cloudflare Worker 中执行。Worker 会对候选地址建立 TCP 连接，使用 `ipv4.090227.xyz` / `ipv6.090227.xyz` 作 SNI，完成 TLS 握手后再发送 HTTP 探针。它显示的 `responseTime` 是两路 TCP `connect_ms` 的平均值，而不是 ICMP Ping，也不是 HTTP 总耗时。
+EdgeTunnel 本身是 Cloudflare Workers/Pages 隧道项目，不是全球 ProxyIP 地理数据库；与之配套的 CheckProxyIP 检测页会用 `/check` 探测候选地址，并从探针 JSON 的出口信息中读取出口 IP、国家/城市、ASN/机房等字段。它的国家/城市展示是“探针返回的出口信息”，不要和候选 IP 的上游地理标签混为一谈。
 
-本软件将相同的探针流程放到 Windows 本机执行。因此测得的是“当前电脑到候选 ProxyIP 的路径”，不等于 Cloudflare Worker 机房到候选 ProxyIP 的路径。首版把这个数值标为“TCP 延迟”，避免混淆。
+本软件的候选列表优先来自 `https://zip.cm.edu.kg/all.json`，预期从每条记录的 `locations.cca2 / region / city / iata` 读取大洲、国家、城市和机场代码。若结构化 JSON 的地理字段覆盖率异常偏低，会再读取 `all.txt` 尝试补充国家代码；TXT 不提供城市，因此城市仍缺失时会明确提示，不会猜造。
 
 ## 默认保护
 
