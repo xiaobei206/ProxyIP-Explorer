@@ -1,0 +1,79 @@
+name: Test, build, and publish ProxyIP Explorer 0.1.4
+
+on:
+  push:
+    paths:
+      - '.github/workflows/release-v0.1.4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-build-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build Windows portable executable
+        run: npm run dist:portable
+
+      - name: Package versioned source and checksums
+        shell: pwsh
+        run: |
+          $version = '0.1.4'
+          $stage = Join-Path $env:RUNNER_TEMP "ProxyIP-Explorer-$version"
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+
+          $include = @(
+            '.gitignore', 'README.md', 'main.cjs', 'preload.cjs', 'package.json',
+            'package-lock.json', 'src', 'tests', 'scripts',
+            '安装依赖.bat', '启动软件.bat', '打包便携版EXE.bat', '版本说明.txt'
+          )
+          foreach ($relative in $include) {
+            if (!(Test-Path -LiteralPath $relative)) { continue }
+            $destination = Join-Path $stage $relative
+            New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null
+            Copy-Item -LiteralPath $relative -Destination $destination -Recurse -Force
+          }
+
+          $sourceZip = Join-Path $env:RUNNER_TEMP "ProxyIP-Explorer-$version-source.zip"
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $sourceZip -Force
+
+          $exe = Get-ChildItem 'dist' -Filter "ProxyIP-Explorer-$version-portable.exe" -Recurse | Select-Object -First 1
+          if (!$exe) { throw "Portable executable ProxyIP-Explorer-$version-portable.exe was not produced." }
+
+          $shaPath = Join-Path $env:RUNNER_TEMP "ProxyIP-Explorer-$version-SHA256.txt"
+          $exeHash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipHash = (Get-FileHash $sourceZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $shaText = "$exeHash  ProxyIP-Explorer-$version-portable.exe`r`n$zipHash  ProxyIP-Explorer-$version-source.zip`r`n"
+          [IO.File]::WriteAllText($shaPath, $shaText, [Text.UTF8Encoding]::new($false))
+
+          "SOURCE_ZIP=$sourceZip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "EXE_PATH=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SHA_PATH=$shaPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $files = @($env:EXE_PATH, $env:SOURCE_ZIP, $env:SHA_PATH)
+          gh release view v0.1.4 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload v0.1.4 $files --clobber
+          } else {
+            gh release create v0.1.4 $files --target main --title 'ProxyIP Explorer 0.1.4' --notes '0.1.4 fixes TCP timing by measuring the plain TCP socket before TLS, aligns probe-family detection, corrects Estonia country flags, and documents probe exit city semantics. Published after Windows tests and portable packaging succeeded.'
+          }
