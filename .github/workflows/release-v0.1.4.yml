@@ -1,4 +1,4 @@
-name: Test, build, and publish ProxyIP Explorer 0.1.4
+name: Test, build, and publish ProxyIP Explorer 0.1.4 (latest source)
 
 on:
   push:
